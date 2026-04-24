@@ -35,7 +35,11 @@ class ProcessManager:
     def start(self, config: LaunchConfig) -> Popen[bytes]:
         logger.info("[START_PROC] shell_command=%s", config.shell_command)
         
-        args = shlex.split(config.shell_command)
+        import sys
+        if sys.platform == "win32":
+            args = self._split_command_windows(config.shell_command)
+        else:
+            args = shlex.split(config.shell_command)
         logger.debug("[START_PROC] args=%s", args)
         
         try:
@@ -247,3 +251,33 @@ class ProcessManager:
 
         if self._callback is not None:
             self._callback(message, level)
+
+    def _split_command_windows(self, command: str) -> list[str]:
+        import re
+        result: list[str] = []
+        current = ""
+        in_quote = False
+        quote_char = ""
+        
+        for char in command:
+            if char in ('"', "'"):
+                if not in_quote:
+                    in_quote = True
+                    quote_char = char
+                elif char == quote_char:
+                    in_quote = False
+                    quote_char = ""
+                else:
+                    current += char
+            elif char == ' ' and not in_quote:
+                if current:
+                    result.append(current)
+                    current = ""
+            else:
+                current += char
+        
+        if current:
+            result.append(current)
+        
+        logger.debug("[SPLIT_WINDOWS] command=%s, result=%s", command, result)
+        return result

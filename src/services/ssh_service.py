@@ -17,8 +17,8 @@ class SSHService:
         self._lock = threading.Lock()
 
     def build_command(self, cfg: SSHConfig) -> str:
-        logger.info("[SSH_BUILD_CMD] local_port=%d, remote_port=%d, host=%s, user=%s",
-                    cfg.local_port, cfg.remote_port, cfg.remote_host, cfg.username)
+        logger.info("[SSH_BUILD_CMD] local_port=%d, remote_port=%d, host=%s, user=%s, ssh_port=%d",
+                    cfg.local_port, cfg.remote_port, cfg.remote_host, cfg.username, cfg.ssh_port)
         logger.debug("[SSH_BUILD_CMD] key_file=%s, password_set=%s", 
                      cfg.key_file, bool(cfg.password))
         
@@ -32,6 +32,8 @@ class SSHService:
             "StrictHostKeyChecking=no",
             "-N",
         ])
+        if cfg.ssh_port != 22:
+            parts.extend(["-p", str(cfg.ssh_port)])
         if cfg.key_file:
             parts.extend(["-i", cfg.key_file])
         parts.append(f"{cfg.username}@{cfg.remote_host}")

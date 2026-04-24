@@ -388,30 +388,32 @@ class CmdPreviewRow(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master)
         self.on_copy: Callable[[], None] = lambda: None
+        self._full_cmd: str = ""
 
-        ttk.Label(self, text="预览:").pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(self, text="预览:").grid(row=0, column=0, sticky=tk.NW, padx=(0, 5))
 
         self.lbl_cmd_preview = ttk.Label(
-            self, text="", foreground="#333", wraplength=500
+            self, text="", foreground="#333", wraplength=600,
         )
-        self.lbl_cmd_preview.pack(side=tk.LEFT, fill=tk.X, expand=True)
+        self.lbl_cmd_preview.grid(row=0, column=1, sticky=tk.W, padx=5)
 
         self.btn_copy_cmd = ttk.Button(
             self, text="复制", command=self._on_copy, width=6
         )
-        self.btn_copy_cmd.pack(side=tk.RIGHT, padx=(5, 0))
+        self.btn_copy_cmd.grid(row=0, column=2, sticky=tk.E, padx=5)
 
     def _on_copy(self) -> None:
-        self.on_copy()
+        self.clipboard_clear()
+        self.clipboard_append(self._full_cmd)
+        self.btn_copy_cmd.config(text="已复制")
+        self.after(1500, lambda: self.btn_copy_cmd.config(text="复制"))
 
     def set_preview(self, cmd: str) -> None:
-        display = cmd
-        if len(display) > 80:
-            display = display[:77] + "..."
-        self.lbl_cmd_preview.config(text=display)
+        self._full_cmd = cmd
+        self.lbl_cmd_preview.config(text=cmd)
 
     def get_preview(self) -> str:
-        return self.lbl_cmd_preview.cget("text")
+        return self._full_cmd
 
     def show_copied(self) -> None:
         original = self.btn_copy_cmd.cget("text")

@@ -31,6 +31,8 @@ logger = logging.getLogger(__name__)
 
 class App:
     def __init__(self) -> None:
+        self._init_logging()
+        
         self.root = tk.Tk()
         self.root.title("llamacpp-panel")
         self.root.geometry("1000x700")
@@ -45,7 +47,23 @@ class App:
         self._current_process: object | None = None
         self._restart_config = RestartConfig()
 
+    def _init_logging(self) -> None:
+        from datetime import datetime
+        
+        log_dir = "log"
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, f"{datetime.now().strftime('%Y-%m-%d')}.txt")
+        
+        file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
+        file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        root_logger.setLevel(logging.INFO)
+        
+        logger.info("[INIT_LOGGING] log_file=%s", log_file)
+
     def _create_services(self) -> None:
+        logger.info("[CREATE_SERVICES] starting")
         self.config_service = ConfigService()
         self.param_service = ParamService()
         self.monitor_service = MonitorService()
@@ -53,21 +71,11 @@ class App:
         self.process_manager = ProcessManager(
             callback=lambda msg, level: self._safe_log(msg, level),
         )
+        logger.info("[CREATE_SERVICES] completed")
 
     def _create_ui(self) -> None:
-        from datetime import datetime
-
-        log_dir = "log"
-        os.makedirs(log_dir, exist_ok=True)
-        log_file = os.path.join(log_dir, f"{datetime.now().strftime('%Y-%m-%d')}.txt")
-
-        file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
-        file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
-        root_logger = logging.getLogger()
-        root_logger.addHandler(file_handler)
-        if not root_logger.handlers:
-            root_logger.setLevel(logging.INFO)
-
+        logger.info("[CREATE_UI] starting")
+        
         self.toolbar = Toolbar(
             self.root,
             on_start=self._on_start,
@@ -99,6 +107,8 @@ class App:
             on_disconnect=self._on_ssh_disconnect,
         )
         notebook.add(self.ssh_panel, text="SSH 映射")
+        
+        logger.info("[CREATE_UI] completed")
 
     def _wire_callbacks(self) -> None:
         logger.info("[WIRE_CALLBACKS] starting_monitoring, interval=%f", MONITOR_INTERVAL)

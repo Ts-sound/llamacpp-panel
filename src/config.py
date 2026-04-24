@@ -10,6 +10,7 @@ SSH_LOCAL_PORT: int = 8080
 SSH_REMOTE_PORT: int = 8080
 SSH_REMOTE_HOST: str = "172.18.122.71"
 SSH_USERNAME: str = "root"
+SSH_PORT: int = 22
 
 CONFIG_PATH: str = "config/app_config.json"
 CONFIG_DIR: str = os.path.dirname(CONFIG_PATH) or "config"

@@ -10,6 +10,7 @@ class SSHConfig:
     remote_port: int
     remote_host: str
     username: str
+    ssh_port: int = 22
     enabled: bool = False
     password: str = ""
     key_file: str = ""
@@ -20,6 +21,7 @@ class SSHConfig:
             "remote_port": self.remote_port,
             "remote_host": self.remote_host,
             "username": self.username,
+            "ssh_port": self.ssh_port,
             "enabled": self.enabled,
             "password": self.password,
             "key_file": self.key_file,
@@ -32,6 +34,7 @@ class SSHConfig:
             remote_port=d["remote_port"],
             remote_host=d["remote_host"],
             username=d["username"],
+            ssh_port=d.get("ssh_port", 22),
             enabled=d.get("enabled", False),
             password=d.get("password", ""),
             key_file=d.get("key_file", ""),

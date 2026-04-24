@@ -17,6 +17,7 @@ class TestSSHConfig:
             "remote_port": 8080,
             "remote_host": "172.18.122.71",
             "username": "root",
+            "ssh_port": 22,
             "enabled": False,
             "password": "",
             "key_file": "",
