@@ -1,0 +1,34 @@
+{
+  "name": "min",
+  "parameters": [
+    {
+      "name": "-m",
+      "category": "model",
+      "required": true,
+      "value": "/path/to/model.gguf",
+      "description": "Model path"
+    },
+    {
+      "name": "-c",
+      "category": "basic",
+      "required": false,
+      "value": "8192",
+      "description": "Context size"
+    },
+    {
+      "name": "--port",
+      "category": "basic",
+      "required": false,
+      "value": "8080",
+      "description": "Server port"
+    }
+  ],
+  "ssh_config": {
+    "local_port": 8080,
+    "remote_port": 8080,
+    "remote_host": "example.com",
+    "username": "user",
+    "ssh_port": 22,
+    "key_file": "~/.ssh/id_rsa"
+  }
+}
