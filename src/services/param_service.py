@@ -5,8 +5,10 @@ import json
 import logging
 import os
 import pathlib
+from typing import Any
 
 from src.models.server_config import LaunchConfig, Parameter
+from src.models.ssh_config import SSHConfig
 from src.utils.cross_platform import get_cpu_count
 
 logger = logging.getLogger(__name__)
@@ -51,7 +53,7 @@ TEMPLATE_DIR = "config/templates"
 
 class ParamService:
     def __init__(self) -> None:
-        self._user_templates: dict[str, list[Parameter]] = {}
+        self._user_templates: dict[str, tuple[list[Parameter], SSHConfig | None]] = {}
         self._template_dir = pathlib.Path(TEMPLATE_DIR)
         self._template_dir.mkdir(parents=True, exist_ok=True)
         self._load_user_templates()
@@ -72,8 +74,22 @@ class ParamService:
                     )
                     for p in data.get("parameters", [])
                 ]
-                self._user_templates[name] = params
-            except (json.JSONDecodeError, KeyError):
+                ssh_config = None
+                if "ssh_config" in data:
+                    ssh_data = data["ssh_config"]
+                    ssh_config = SSHConfig(
+                        local_port=ssh_data.get("local_port", 8080),
+                        remote_port=ssh_data.get("remote_port", 8080),
+                        remote_host=ssh_data.get("remote_host", ""),
+                        username=ssh_data.get("username", "root"),
+                        ssh_port=ssh_data.get("ssh_port", 22),
+                        key_file=ssh_data.get("key_file", ""),
+                    )
+                self._user_templates[name] = (params, ssh_config)
+                logger.info("[LOAD_TEMPLATE] name=%s, params=%d, ssh=%s", 
+                            name, len(params), ssh_config is not None)
+            except (json.JSONDecodeError, KeyError) as e:
+                logger.warning("[LOAD_TEMPLATE] error: %s, file=%s", e, f)
                 continue
 
     def get_template_names(self) -> list[str]:
@@ -82,25 +98,34 @@ class ParamService:
         logger.debug("[GET_TEMPLATE_NAMES] count=%d, names=%s", len(result), result)
         return result
 
-    def get_template(self, name: str) -> list[Parameter]:
+    def get_template(self, name: str) -> tuple[list[Parameter], SSHConfig | None]:
         logger.info("[GET_TEMPLATE] name=%s", name)
         
         if name in self._user_templates:
-            params = copy.deepcopy(self._user_templates[name])
-            logger.info("[GET_TEMPLATE] found_user_template: param_count=%d", len(params))
-            return params
+            params, ssh_config = self._user_templates[name]
+            params_copy = copy.deepcopy(params)
+            ssh_copy = copy.deepcopy(ssh_config) if ssh_config else None
+            logger.info("[GET_TEMPLATE] found_user_template: params=%d, ssh=%s", 
+                        len(params_copy), ssh_copy is not None)
+            return params_copy, ssh_copy
         if name in DEFAULT_TEMPLATES:
             params = copy.deepcopy(DEFAULT_TEMPLATES[name])
-            logger.info("[GET_TEMPLATE] found_default_template: param_count=%d", len(params))
-            return params
+            logger.info("[GET_TEMPLATE] found_default_template: params=%d, ssh=None", len(params))
+            return params, None
         
         logger.warning("[GET_TEMPLATE] not_found: name=%s", name)
-        return []
+        return [], None
 
-    def save_template(self, name: str, params: list[Parameter]) -> None:
-        logger.info("[SAVE_TEMPLATE] name=%s, param_count=%d", name, len(params))
+    def save_template(
+        self, 
+        name: str, 
+        params: list[Parameter], 
+        ssh_config: SSHConfig | None = None,
+    ) -> None:
+        logger.info("[SAVE_TEMPLATE] name=%s, params=%d, ssh=%s", 
+                    name, len(params), ssh_config is not None)
         
-        data = {
+        data: dict[str, Any] = {
             "name": name,
             "parameters": [
                 {
@@ -113,13 +138,23 @@ class ParamService:
                 for p in params
             ],
         }
+        if ssh_config:
+            data["ssh_config"] = {
+                "local_port": ssh_config.local_port,
+                "remote_port": ssh_config.remote_port,
+                "remote_host": ssh_config.remote_host,
+                "username": ssh_config.username,
+                "ssh_port": ssh_config.ssh_port,
+                "key_file": ssh_config.key_file,
+            }
+        
         target = self._template_dir / f"{name}.json"
         logger.debug("[SAVE_TEMPLATE] target_path=%s", target)
         
         with open(target, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False, indent=2)
         
-        self._user_templates[name] = copy.deepcopy(params)
+        self._user_templates[name] = (copy.deepcopy(params), copy.deepcopy(ssh_config) if ssh_config else None)
         logger.info("[SAVE_TEMPLATE] success: %s", target)
 
     def build_command(self, config: LaunchConfig) -> str:

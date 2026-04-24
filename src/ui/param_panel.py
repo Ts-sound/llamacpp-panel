@@ -5,6 +5,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from src.models.server_config import LaunchConfig, Parameter
+from src.models.ssh_config import SSHConfig
 from src.services.config_service import ConfigService
 from src.services.param_service import ParamService
 from src.utils.file_utils import select_server_file
@@ -27,6 +28,7 @@ class ParamPanel(ttk.Frame):
         self._on_file_selected: Callable[[str], None] = lambda p: None
         self._on_model_selected: Callable[[str], None] = lambda p: None
         self._on_load_template: Callable[[str], None] = lambda n: None
+        self._on_ssh_config_loaded: Callable[[SSHConfig | None], None] = lambda c: None
         self._on_save_template: Callable[[str], None] = lambda n: None
         self._on_save_as_template: Callable[[str], None] = lambda n: None
         self._on_parameter_changed: Callable[[list[Parameter]], None] = lambda p: None
@@ -74,8 +76,9 @@ class ParamPanel(ttk.Frame):
         name = self._template_row.get_selected_template()
         if not name:
             return
-        params = self._param_service.get_template(name)
+        params, ssh_config = self._param_service.get_template(name)
         self.load_parameters(params)
+        self._on_ssh_config_loaded(ssh_config)
         self._on_load_template(name)
 
     def _on_save_template_clicked(self) -> None:

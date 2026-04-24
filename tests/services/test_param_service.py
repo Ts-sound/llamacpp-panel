@@ -76,41 +76,45 @@ class TestGetTemplate:
         self.service = ParamService()
 
     def test_exists_template_min(self):
-        params = self.service.get_template("最小配置")
+        params, ssh_config = self.service.get_template("最小配置")
         assert len(params) == 2
         assert all(isinstance(p, Parameter) for p in params)
+        assert ssh_config is None
 
     def test_exists_template_gpu(self):
-        params = self.service.get_template("GPU加速")
+        params, ssh_config = self.service.get_template("GPU加速")
         assert len(params) == 3
         names = [p.name for p in params]
         assert "-ngl" in names
+        assert ssh_config is None
 
     def test_exists_template_full(self):
-        params = self.service.get_template("全功能")
+        params, ssh_config = self.service.get_template("全功能")
         assert len(params) == 6
         names = [p.name for p in params]
         assert "--threads" in names
         assert "--host" in names
         assert "--port" in names
+        assert ssh_config is None
 
     def test_nonexistent_template(self):
-        params = self.service.get_template("不存在")
+        params, ssh_config = self.service.get_template("不存在")
         assert params == []
+        assert ssh_config is None
 
     def test_deep_copy(self):
-        params1 = self.service.get_template("最小配置")
-        params2 = self.service.get_template("最小配置")
+        params1, _ = self.service.get_template("最小配置")
+        params2, _ = self.service.get_template("最小配置")
         params1[0].value = "modified"
         assert params2[0].value != "modified"
 
     def test_required_field(self):
-        params = self.service.get_template("最小配置")
+        params, _ = self.service.get_template("最小配置")
         model_param = next(p for p in params if p.name == "-m")
         assert model_param.required is True
 
     def test_template_has_descriptions(self):
-        params = self.service.get_template("全功能")
+        params, _ = self.service.get_template("全功能")
         for p in params:
             assert isinstance(p.description, str)
 

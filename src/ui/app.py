@@ -98,6 +98,7 @@ class App:
         )
         self.param_panel._on_save_template = self._on_save_template
         self.param_panel._on_save_as_template = self._on_save_as_template
+        self.param_panel._on_ssh_config_loaded = self._on_ssh_config_loaded
         notebook.add(self.param_panel, text="参数配置")
 
         self.ssh_panel = SSHPanel(
@@ -300,6 +301,18 @@ class App:
             self.process_manager.disable_auto_restart()
             self.log_panel.log("自动重启已禁用", "SYSTEM")
 
+    def _on_ssh_config_loaded(self, ssh_config: SSHConfig | None) -> None:
+        logger.info("[ON_SSH_CONFIG_LOADED] ssh_config=%s", ssh_config)
+        if ssh_config is not None:
+            self.ssh_panel._local_port_var.set(str(ssh_config.local_port))
+            self.ssh_panel._remote_port_var.set(str(ssh_config.remote_port))
+            self.ssh_panel._remote_host_var.set(ssh_config.remote_host)
+            self.ssh_panel._username_var.set(ssh_config.username)
+            self.ssh_panel._ssh_port_var.set(str(ssh_config.ssh_port))
+            self.ssh_panel._key_file_var.set(ssh_config.key_file)
+            self.ssh_panel._update_cmd_preview()
+            self.log_panel.log(f"SSH 配置已加载: {ssh_config.username}@{ssh_config.remote_host}", "INFO")
+
     def _on_save_template(self, name: str) -> None:
         params = self.param_panel.get_current_params()
         if self.param_panel.get_model_path():
@@ -310,7 +323,8 @@ class App:
                 required=True,
                 description="模型路径",
             ))
-        self.param_service.save_template(name, params)
+        ssh_config = self.ssh_panel.get_config()
+        self.param_service.save_template(name, params, ssh_config)
         self.log_panel.log(f"模板已保存: {name}", "INFO")
 
     def _on_save_as_template(self) -> None:
@@ -327,7 +341,8 @@ class App:
                 required=True,
                 description="模型路径",
             ))
-        self.param_service.save_template(name, params)
+        ssh_config = self.ssh_panel.get_config()
+        self.param_service.save_template(name, params, ssh_config)
         self.log_panel.log(f"模板已保存: {name}", "INFO")
         self.param_panel._template_row.cmb_template["values"] = self.param_service.get_template_names()
         self.param_panel._template_row.cmb_template.set(name)
