@@ -138,7 +138,6 @@
 |------|------|------|
 | btn_select_file | "选择启动文件" 打开文件对话框 | Windows: `*.exe` 过滤, Linux: 所有文件 |
 | lbl_server_path | 显示当前路径（过长省略） | - |
-| cmb_history | 下拉选择历史路径 | 切换 → 更新路径 → 触发回调 |
 
 ### TemplateRow
 
@@ -232,8 +231,9 @@
 | 1 | 远程端口 | Entry (int) | 8080 |
 | 2 | 远程IP | Entry (str) | 172.18.122.71 |
 | 3 | 用户名 | Entry (str) | root |
-| 4 | 密码 | Entry (show="*") | 空 |
-| 5 | 密钥 | Entry + 浏览按钮 | 空 |
+| 4 | 密钥 | Entry + 浏览按钮 | 空 |
+
+**认证方式**: 仅密钥文件认证，密码已移除。
 
 ### SSHStatusRow
 
@@ -256,6 +256,18 @@
 |------|---------|
 | 连接 | 未连接时可用 |
 | 断开 | 已连接/连接中时可用 |
+
+### SSHCmdPreviewRow (新增)
+
+| 控件 | 说明 |
+|------|------|
+| lbl_cmd_label | "命令:" |
+| lbl_cmd_preview | 显示 SSH 命令字符串 |
+| btn_copy_cmd | 复制到剪贴板 |
+
+**交互:**
+- 字段变化 → 重新构建命令 → 更新预览
+- 点击复制 → 复制到剪贴板
 
 **回调接口:**
 
@@ -298,6 +310,12 @@
 - 每行追加时自动滚动到底部
 - 折叠时隐藏 LogContent，LogHeader 仍可见
 - 日志行数上限 10000 行（超出自动清理旧日志，保留最近 5000 行）
+- 所有日志同步写入 `log/app.log` 文件
+
+**日志文件:**
+- 路径: `log/app.log`
+- 格式: `[YYYY-MM-DD HH:MM:SS] [LEVEL] message`
+- 来源: Python logging.FileHandler，服务层和 UI 层共用
 
 **回调接口:**
 

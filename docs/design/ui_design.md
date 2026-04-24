@@ -164,11 +164,9 @@ set_button_state(state: ButtonState)
 |------|------|
 | btn_select_file | 打开文件对话框选择启动文件，标签 "选择启动文件" |
 | lbl_server_path | 显示当前选中路径，过长时省略 |
-| cmb_history | 下拉选择历史路径，支持快速切换 |
 
 **交互:**
 - 点击 btn_select_file → 调用 `file_utils.select_server_file()` → Windows 过滤 `*.exe`, Linux 显示所有文件 → 更新 lbl_server_path → 触发 `on_path_changed`
-- 切换 cmb_history → 更新 lbl_server_path → 触发 `on_path_changed`
 
 #### TemplateRow
 | 控件 | 说明 |
@@ -245,8 +243,9 @@ on_command_copy()
 | 1 | 远程端口 | tk.Entry (int) | 8080 |
 | 2 | 远程IP | tk.Entry (str) | 172.18.122.71 |
 | 3 | 用户名 | tk.Entry (str) | root |
-| 4 | 密码 | tk.Entry (str, show="*") | 空 |
-| 5 | 密钥 | tk.Entry (str) + 浏览按钮 | 空 |
+| 4 | 密钥 | tk.Entry (str) + 浏览按钮 | 空 |
+
+**认证方式**: 仅支持密钥文件认证（`-i key_file`），密码认证已移除。
 
 #### SSHStatusRow
 | 控件 | 说明 |
@@ -275,9 +274,20 @@ on_disconnect_clicked()
 update_status(state: SSHState)
 ```
 
+#### SSHCmdPreviewRow (新增)
+| 控件 | 说明 |
+|------|------|
+| lbl_cmd_label | "命令:" |
+| lbl_cmd_preview | 显示 SSH 命令字符串，过长时省略 |
+| btn_copy_cmd | 复制到剪贴板 |
+
+**交互:**
+- 任何字段变化 → 调用 `ssh_service.build_command()` → 更新 lbl_cmd_preview
+- 点击 btn_copy_cmd → 复制到剪贴板
+
 ### 3.4 LogPanel
 
-**职责**: 显示运行日志
+**职责**: 显示运行日志 + 持久化到日志文件
 
 **子组件:**
 
@@ -302,6 +312,12 @@ update_status(state: SSHState)
 - 每行追加时自动滚动到底部
 - 折叠时隐藏 LogContent，LogHeader 仍可见
 - 日志行数上限 10000 行（超出自动清理旧日志）
+- 所有日志同步写入 `log/app.log` 文件
+
+**日志文件:**
+- 路径: `log/app.log`
+- 格式: `[YYYY-MM-DD HH:MM:SS] [LEVEL] message`
+- 来源: Python logging 模块，服务层和 UI 层共用
 
 **回调接口:**
 ```
