@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-import os
-import signal
+import subprocess
 import sys
 from subprocess import Popen
 
@@ -22,28 +21,37 @@ def kill_process(process: Popen[bytes] | None, timeout: int = 5) -> None:
     if process is None:
         return
 
+    pid = process.pid
+    
     if get_platform() == "windows":
         try:
-            process.send_signal(  # type: ignore[arg-type]
-                getattr(__import__("subprocess"), "CTRL_BREAK_EVENT")  # type: ignore[arg-type]
-            )
-        except (OSError, AttributeError):
+            process.send_signal(subprocess.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
+        except (OSError, AttributeError, ProcessLookupError):
             pass
-        process.terminate()
         try:
+            process.terminate()
             process.wait(timeout=timeout)
+        except (subprocess.TimeoutExpired, TimeoutError):
+            try:
+                process.kill()
+                process.wait(timeout=2)
+            except Exception:
+                pass
         except Exception:
-            process.kill()
-            process.wait()
+            pass
         return
 
     try:
         process.terminate()
+        process.wait(timeout=timeout)
+    except (subprocess.TimeoutExpired, TimeoutError):
         try:
-            process.wait(timeout=timeout)
-        except Exception:
             process.kill()
-            process.wait()
+            process.wait(timeout=2)
+        except Exception:
+            pass
+    except (OSError, ProcessLookupError):
+        pass
     except Exception:
         pass
 

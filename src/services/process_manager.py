@@ -99,6 +99,13 @@ class ProcessManager:
         if target.stderr:
             target.stderr.close()
         
+        if self._stdout_thread is not None and self._stdout_thread.is_alive():
+            self._stdout_thread.join(timeout=1.0)
+            logger.info("[STOP_PROC] stdout_thread_joined")
+        if self._stderr_thread is not None and self._stderr_thread.is_alive():
+            self._stderr_thread.join(timeout=1.0)
+            logger.info("[STOP_PROC] stderr_thread_joined")
+        
         kill_process(target, timeout=5)
         
         if target is self._current_process:

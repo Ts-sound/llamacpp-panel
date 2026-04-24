@@ -162,8 +162,10 @@ class App:
                     break
 
         if ssh_config.remote_host:
+            self._on_ssh_config_loaded(ssh_config)
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
-            logger.info("[LOAD_SAVED_CONFIG] ssh_config_loaded: host=%s", ssh_config.remote_host)
+            logger.info("[LOAD_SAVED_CONFIG] ssh_config_loaded: host=%s, port=%d", 
+                        ssh_config.remote_host, ssh_config.ssh_port)
 
         self.toolbar.auto_restart_config.var.set(self._restart_config.auto_restart)
         self.toolbar.set_auto_restart_config(
