@@ -4,6 +4,8 @@ Lightweight GUI management tool for llama.cpp, built with Python Tkinter, zero t
 
 **Language**: [English](README.md) | [中文](README.zh.md)
 
+![llamacpp-panel screenshot](docs/assets/llamacpp-panel.png)
+
 ## Features
 
 - **Visual Executable Selection** — File dialog with history for selecting llama.cpp server binary

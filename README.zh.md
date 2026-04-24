@@ -4,6 +4,8 @@
 
 **语言切换**: [English](README.md) | [中文](README.zh.md)
 
+![llamacpp-panel 界面截图](docs/assets/llamacpp-panel.png)
+
 ## 功能特性
 
 - **可视化选择可执行文件** — 文件对话框 + 历史记录
