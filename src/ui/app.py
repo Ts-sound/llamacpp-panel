@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING
@@ -29,6 +30,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def get_icon_path() -> str:
+    """Get icon path for both development and PyInstaller packaged mode."""
+    icon_name = "llamacpp-panel.ico"
+    if getattr(sys, "frozen", False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_path, icon_name)
+
+
 class App:
     def __init__(self) -> None:
         self._init_logging()
@@ -36,6 +47,11 @@ class App:
         self.root = tk.Tk()
         self.root.title("llamacpp-panel")
         self.root.geometry("1000x700")
+        
+        icon_path = get_icon_path()
+        if os.path.exists(icon_path):
+            self.root.iconbitmap(icon_path)
+            logger.info("[APP] icon_loaded: %s", icon_path)
 
         self._create_services()
         self._create_ui()
