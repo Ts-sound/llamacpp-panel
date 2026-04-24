@@ -94,25 +94,30 @@ class ProcessManager:
         
         logger.info("[STOP_PROC] pid=%d, stopping", target.pid)
         
-        if target.stdout:
-            target.stdout.close()
-        if target.stderr:
-            target.stderr.close()
+        self._stop_output_threads()
         
-        if self._stdout_thread is not None and self._stdout_thread.is_alive():
-            self._stdout_thread.join(timeout=1.0)
-            logger.info("[STOP_PROC] stdout_thread_joined")
-        if self._stderr_thread is not None and self._stderr_thread.is_alive():
-            self._stderr_thread.join(timeout=1.0)
-            logger.info("[STOP_PROC] stderr_thread_joined")
-        
+        logger.info("[STOP_PROC] killing_process")
         kill_process(target, timeout=5)
+        logger.info("[STOP_PROC] process_killed")
         
         if target is self._current_process:
             self._current_process = None
         
         logger.info("[STOP_PROC] pid=%d, stopped", target.pid)
         self._log("Server stopped", "INFO")
+
+    def _stop_output_threads(self) -> None:
+        if self._current_process:
+            if self._current_process.stdout:
+                try:
+                    self._current_process.stdout.close()
+                except Exception:
+                    pass
+            if self._current_process.stderr:
+                try:
+                    self._current_process.stderr.close()
+                except Exception:
+                    pass
 
     def is_running(self, process: Popen[bytes] | None = None) -> bool:
         target = process if process is not None else self._current_process
