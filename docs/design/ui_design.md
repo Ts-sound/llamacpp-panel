@@ -41,64 +41,45 @@
 
 ```
 App (tk.Tk)
-├── Toolbar (tk.Frame)
-│   ├── MemoryBar (tk.Frame)         # 垂直排列
-│   │   ├── memory_label (tk.Label)      # "MEM: 60% / 16G"
-│   │   └── memory_progress (ttk.Progressbar)
-│   ├── GPUBar (tk.Frame)              # 垂直排列, MEM 下方
-│   │   ├── gpu_label (tk.Label)         # "GPU: 45% / 8G"
-│   │   └── gpu_progress (ttk.Progressbar)
-│   ├── ControlButtons (tk.Frame)
-│   │   ├── btn_start (tk.Button)        # "启动"
-│   │   ├── btn_stop (tk.Button)         # "停止"
-│   │   └── btn_restart (tk.Button)      # "重启"
-│   └── AutoRestartToggle (tk.Frame)
-│       └── chk_auto_restart (tk.Checkbutton)  # "自动重启"
+├── Toolbar (tk.Frame, height=80)
+│   ├── Row 1: StatusRow (grid, 4 columns + 1 fixed)
+│   │   ├── MemoryIndicator (col=0)      # "MEM: 50% / 16G" + 圆点 + 进度条
+│   │   ├── GPUIndicator (col=1)         # "GPU: 30% / 8G" + 圆点 + 进度条
+│   │   ├── ServerIndicator (col=2)      # "SERVER: 运行中" + 状态圆点
+│   │   ├── SSHIndicator (col=3)         # "SSH: 已连接" + 状态圆点
+│   │   └── AutoStartSSH (col=4)         # ☑ "同时启动SSH"
+│   └── Row 2: ControlRow (grid)
+│   │   ├── ControlButtons (col=0-1)     # [启动][停止][重启]
+│   │   └── AutoRestartConfig (col=2-4)  # ☑ 自动重启 | 次数:3 | 间隔:5秒 | 内存:90%
 ├── Notebook (ttk.Notebook)
 │   ├── ParamPanelTab (tk.Frame)
 │   │   └── ParamPanel (tk.Frame)
 │   │       ├── FileSelectRow (tk.Frame)
 │   │       │   ├── btn_select_file (tk.Button)    # "选择启动文件"
-│   │       │   ├── lbl_server_path (tk.Label)     # 当前路径
-│   │       │   └── cmb_history (ttk.Combobox)     # 历史记录下拉
+│   │       │   └── lbl_server_path (tk.Label)     # 当前路径
 │   │       ├── TemplateRow (tk.Frame)
-│   │       │   ├── lbl_template (tk.Label)         # "模板:"
-│   │       │   ├── cmb_template (ttk.Combobox)     # 模板选择(动态加载)
+│   │       │   ├── cmb_template (ttk.Combobox)     # 模板选择
 │   │       │   ├── btn_load_template (tk.Button)   # "加载"
 │   │       │   ├── btn_save_template (tk.Button)   # "保存"
 │   │       │   └── btn_save_as_template (tk.Button) # "另存为"
-│   │       ├── ModelSelectRow (tk.Frame)           # 新增: 独立模型选择
-│   │       │   ├── lbl_model_label (tk.Label)       # "模型:"
-│   │       │   ├── btn_browse (tk.Button)           # "浏览"
-│   │       │   └── lbl_model (tk.Label)             # 模型文件路径
+│   │       ├── ModelSelectRow (tk.Frame)
+│   │       │   ├── btn_browse (tk.Button)          # "浏览"
+│   │       │   └ lbl_model (tk.Label)             # 模型文件路径
 │   │       ├── ParamTable (tk.Frame)
-│   │       │   └── tree_params (ttk.Treeview)      # 参数表格
-│   │       │       列: 参数名 | 值 | 操作
+│   │       │   └── tree_params (ttk.Treeview)      # 参数表格 (3列)
 │   │       └── CmdPreviewRow (tk.Frame)
-│   │           ├── lbl_cmd_preview (tk.Label)       # "预览: ..."
-│   │           └── btn_copy_cmd (tk.Button)         # "复制"
+│   │           ├── lbl_cmd_preview (tk.Label)      # 完整命令预览 (wraplength)
+│   │           └── btn_copy_cmd (tk.Button)        # "复制"
 │   └── SSHPanelTab (tk.Frame)
 │       └── SSHPanel (tk.Frame)
-│           ├── SSHConfigGrid (tk.Frame)
-│           │   ├── lbl_local_port (tk.Label)        # "本地端口:"
-│           │   ├── ent_local_port (tk.Entry)
-│           │   ├── lbl_remote_port (tk.Label)       # "远程端口:"
-│           │   ├── ent_remote_port (tk.Entry)
-│           │   ├── lbl_remote_host (tk.Label)       # "远程IP:"
-│           │   ├── ent_remote_host (tk.Entry)
-│           │   ├── lbl_username (tk.Label)          # "用户名:"
-│           │   ├── ent_username (tk.Entry)
-│           │   ├── lbl_password (tk.Label)          # "密码:"
-│           │   ├── ent_password (tk.Entry, show="*") # 新增
-│           │   ├── lbl_key_file (tk.Label)          # "密钥:"
-│           │   ├── ent_key_file (tk.Entry)           # 新增
-│           │   └── btn_key_browse (tk.Button)        # 新增: "浏览"
-│           ├── SSHStatusRow (tk.Frame)
-│           │   ├── status_indicator (tk.Canvas)     # 颜色圆点
-│           │   └── lbl_status (tk.Label)            # 状态文字
-│           └── SSHButtons (tk.Frame)
-│               ├── btn_connect (tk.Button)           # "连接"
-│               └── btn_disconnect (tk.Button)       # "断开"
+│           ├── ConfigGrid (tk.Frame)
+│           │   ├── Row 0: 本地端口 + 远程IP
+│           │   ├── Row 1: 远程端口 + 用户名
+│           │   ├── Row 2: (空)     + SSH端口
+│           │   ├── Row 3: (空)     + 密钥[浏览]
+│           │   ├── StatusIndicator (Row 4)         # 状态圆点 (无文字)
+│           │   ├── Buttons (Row 5)                 # [连接][断开]
+│           │   └── CmdPreview (Row 6)              # SSH 命令预览
 └── LogPanel (tk.Frame)
     ├── LogHeader (tk.Frame)
     │   ├── lbl_log_title (tk.Label)     # "运行日志"
@@ -111,31 +92,57 @@ App (tk.Tk)
 
 ### 3.1 Toolbar
 
-**职责**: 显示系统资源状态，提供快捷操作按钮
+**职责**: 显示系统资源状态、服务器状态、SSH状态，提供快捷操作按钮和配置
+
+**布局**: grid 布局，4列等间隔 (weight=1)，第5列固定
 
 **子组件:**
 
-| 子组件 | 类型 | 说明 |
+| 子组件 | 位置 | 说明 |
 |--------|------|------|
-| MemoryBar | tk.Frame | 内存进度条 + 标签, 垂直排列(顶部) |
-| GPUBar | tk.Frame | GPU 进度条 + 标签, 垂直排列(MEM 下方, 无 GPU 时隐藏) |
-| ControlButtons | tk.Frame | 启动/停止/重启按钮 |
-| AutoRestartToggle | tk.Frame | 自动重启开关 |
+| MemoryIndicator | Row 0, Col 0 | 内存进度条 + 状态圆点 + 标签 |
+| GPUIndicator | Row 0, Col 1 | GPU进度条 + 状态圆点 + 标签 (无GPU显示N/A) |
+| ServerIndicator | Row 0, Col 2 | SERVER状态: 已停止/运行中/启动中/已崩溃 |
+| SSHIndicator | Row 0, Col 3 | SSH状态: 未连接/连接中/已连接 |
+| AutoStartSSH | Row 0, Col 4 | ☑ "同时启动SSH" checkbox |
+| ControlButtons | Row 1, Col 0-1 | [启动][停止][重启] 按钮 |
+| AutoRestartConfig | Row 1, Col 2-4 | ☑自动重启 + 次数输入 + 间隔输入 + 阈值输入 |
 
-**布局**: `pack(side=TOP, fill=X, padx=10, pady=2)` — 所有子组件垂直排列
+**状态颜色:**
 
-**显示格式:**
-- MemoryBar: `"MEM: {percent:.0f}% / {total_gb:.0f}G"` (如 "MEM: 60% / 16G")
-- GPUBar: `"GPU: {percent:.0f}% / {total_gb:.0f}G"` (如 "GPU: 45% / 8G")
+| 组件 | 颜色 |
+|------|------|
+| MEM/GPU 正常 | 绿色 (#4CAF50) |
+| MEM/GPU 告警 (80%) | 黄色 (#FF9800) |
+| MEM/GPU 危险 (90%) | 红色 (#F44336) |
+| SERVER 已停止 | 灰色 (#888888) |
+| SERVER 运行中 | 绿色 (#00CC00) |
+| SERVER 启动中 | 黄色 (#FFA500) |
+| SERVER 已崩溃 | 红色 (#CC0000) |
+| SSH 未连接 | 灰色 (#888888) |
+| SSH 连接中 | 黄色 (#FFA500) |
+| SSH 已连接 | 绿色 (#00CC00) |
 
-**状态与行为:**
+**按钮状态:**
 
 | 状态 | 启动按钮 | 停止按钮 | 重启按钮 |
 |------|---------|---------|---------|
 | 已停止 | 可用 | 禁用 | 禁用 |
 | 运行中 | 禁用 | 可用 | 可用 |
 | 启动中 | 禁用 | 可用 | 禁用 |
-| 崩溃 | 可用 | 禁用 | 可用 |
+| 已崩溃 | 可用 | 禁用 | 可用 |
+
+**AutoRestartConfig 参数:**
+
+| 参数 | 默认值 | 输入控件 |
+|------|--------|----------|
+| max_restarts | 3 | Entry (width=4) |
+| restart_interval | 5.0 | Entry (width=4) 秒 |
+| memory_threshold | 90.0 | Entry (width=4) % |
+
+**AutoStartSSH 行为:**
+- 勾选后，服务器启动成功并端口就绪时自动启动 SSH tunnel
+- 使用 socket 连接测试端口可用性 (最多检查10次，每次间隔1秒)
 
 **颜色规则:**
 - 内存 < 80%: 绿色
@@ -236,30 +243,28 @@ on_command_copy()
 
 **子组件:**
 
-#### SSHConfigGrid (2列 grid 布局)
-| 行 | 标签 | 输入控件 | 默认值 |
-|----|------|---------|--------|
-| 0 | 本地端口 | tk.Entry (int) | 8080 |
-| 1 | 远程端口 | tk.Entry (int) | 8080 |
-| 2 | 远程IP | tk.Entry (str) | 172.18.122.71 |
-| 3 | 用户名 | tk.Entry (str) | root |
-| 4 | 密钥 | tk.Entry (str) + 浏览按钮 | 空 |
+#### SSHConfigGrid (左右 2 列布局)
+| 行 | 左列 (col=0) | 右列 (col=2) |
+|----|-------------|-------------|
+| 0 | 本地端口: [entry] | 远程IP: [entry] |
+| 1 | 远程端口: [entry] | 用户名: [entry] |
+| 2 | (空) | SSH端口: [entry] (默认 22) |
+| 3 | (空) | 密钥: [entry][浏览] |
 
-**认证方式**: 仅支持密钥文件认证（`-i key_file`），密码认证已移除。
+**注意**: SSH端口字段用于 `-p` 参数，支持非默认端口 (如 2202)
 
-#### SSHStatusRow
+#### SSHStatusIndicator
 | 控件 | 说明 |
 |------|------|
-| status_indicator | 12×12 Canvas 圆形，颜色表示状态 |
-| lbl_status | 状态文字 |
+| status_indicator | 12×12 Canvas 圆形，颜色表示状态 (无文字标签) |
 
 **状态颜色:**
 
-| 状态 | 颜色 | 标签文字 |
-|------|------|---------|
-| disconnected | 灰色 (#888) | 未连接 |
-| connecting | 黄色 (#FFA500) | 连接中... |
-| connected | 绿色 (#00CC00) | 已连接 |
+| 状态 | 颜色 |
+|------|------|
+| disconnected | 灰色 (#888) |
+| connecting | 黄色 (#FFA500) |
+| connected | 绿色 (#00CC00) |
 
 #### SSHButtons
 | 按钮 | 显示条件 |
@@ -267,23 +272,27 @@ on_command_copy()
 | 连接 | 未连接时可用 |
 | 断开 | 已连接/连接中时可用 |
 
+#### SSHCmdPreviewRow
+| 控件 | 说明 |
+|------|------|
+| lbl_cmd_label | "命令:" |
+| lbl_cmd_preview | 显示完整 SSH 命令 (wraplength, 不截断) |
+| btn_copy_cmd | 复制到剪贴板 |
+
+**SSH 命令格式:**
+```bash
+ssh -R 0.0.0.0:8080:127.0.0.1:8080 -o StrictHostKeyChecking=no -N -p 2202 -i /path/key root@172.18.12.xxx
+```
+
+**模板保存:** SSH 配置随模板一起保存到 `config/templates/*.json`
+
 **回调接口:**
 ```
 on_connect_clicked(cfg: SSHConfig)
 on_disconnect_clicked()
 update_status(state: SSHState)
+get_config() -> SSHConfig
 ```
-
-#### SSHCmdPreviewRow (新增)
-| 控件 | 说明 |
-|------|------|
-| lbl_cmd_label | "命令:" |
-| lbl_cmd_preview | 显示 SSH 命令字符串，过长时省略 |
-| btn_copy_cmd | 复制到剪贴板 |
-
-**交互:**
-- 任何字段变化 → 调用 `ssh_service.build_command()` → 更新 lbl_cmd_preview
-- 点击 btn_copy_cmd → 复制到剪贴板
 
 ### 3.4 LogPanel
 
@@ -312,9 +321,18 @@ update_status(state: SSHState)
 - 每行追加时自动滚动到底部
 - 折叠时隐藏 LogContent，LogHeader 仍可见
 - 日志行数上限 10000 行（超出自动清理旧日志）
-- 所有日志同步写入 `log/app.log` 文件
 
 **日志文件:**
+- 文件名格式: `log/YYYY-MM-DD.txt` (每日一个文件)
+- 格式: `[YYYY-MM-DD HH:MM:SS] [LEVEL] module: message`
+- 同时输出到终端控制台 (便于调试)
+
+**两层日志系统:**
+
+| 系统 | 目标 | 内容 |
+|------|------|------|
+| LogPanel (UI) | 用户 | 简洁中文状态日志 |
+| log/*.txt | 开发者 | 详细技术日志 (含参数值、PID 等) |
 - 路径: `log/app.log`
 - 格式: `[YYYY-MM-DD HH:MM:SS] [LEVEL] message`
 - 来源: Python logging 模块，服务层和 UI 层共用
