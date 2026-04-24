@@ -51,10 +51,22 @@ pytest tests/ --cov=src --cov-report=html
 
 ## 打包
 
+### Python 包
+
 ```bash
 pip install build
 python -m build
 ```
+
+### Windows EXE (PyInstaller)
+
+```bash
+pip install pyinstaller pillow
+python -c "from PIL import Image; img = Image.open('llamacpp-panel.png'); sizes = [(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)]; icons = [img.resize(s, Image.Resampling.LANCZOS) for s in sizes]; icons[0].save('llamacpp-panel.ico', format='ICO', append_images=icons[1:])"
+pyinstaller llamacpp-panel.spec
+```
+
+输出: `dist/llamacpp-panel.exe`
 
 ## 架构
 
