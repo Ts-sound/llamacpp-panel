@@ -373,7 +373,8 @@ class App:
         self.root.after(1000, self._check_server_ready_for_ssh)
 
     def _on_ssh_config_loaded(self, ssh_config: SSHConfig | None) -> None:
-        logger.info("[ON_SSH_CONFIG_LOADED] ssh_config=%s", ssh_config)
+        logger.info("[ON_SSH_CONFIG_LOADED] ssh_config=%s, key_file=%s", 
+                    ssh_config, ssh_config.key_file if ssh_config else None)
         if ssh_config is not None:
             self.ssh_panel._local_port_var.set(str(ssh_config.local_port))
             self.ssh_panel._remote_port_var.set(str(ssh_config.remote_port))
@@ -382,6 +383,7 @@ class App:
             self.ssh_panel._ssh_port_var.set(str(ssh_config.ssh_port))
             self.ssh_panel._key_file_var.set(ssh_config.key_file)
             self.ssh_panel._update_cmd_preview()
+            logger.info("[ON_SSH_CONFIG_LOADED] key_file_var_set: %s", self.ssh_panel._key_file_var.get())
             self.log_panel.log(f"SSH 配置已加载: {ssh_config.username}@{ssh_config.remote_host}", "INFO")
 
     def _on_save_template(self, name: str) -> None:
