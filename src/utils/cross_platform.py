@@ -37,12 +37,14 @@ def run_hidden(
     **kwargs: Any,
 ) -> CompletedProcess:
     """Run subprocess with hidden console window on Windows."""
+    if get_platform() == "windows":
+        kwargs["startupinfo"] = get_hidden_startupinfo()
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     return subprocess.run(
         args,
         capture_output=capture_output,
         text=text,
         timeout=timeout,
-        startupinfo=get_hidden_startupinfo(),
         **kwargs,
     )
 
@@ -56,12 +58,14 @@ def popen_hidden(
     **kwargs: Any,
 ) -> Popen:
     """Create Popen with hidden console window on Windows."""
+    if get_platform() == "windows":
+        kwargs["startupinfo"] = get_hidden_startupinfo()
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
     return Popen(
         args,
         stdout=stdout,
         stderr=stderr,
         text=text,
-        startupinfo=get_hidden_startupinfo(),
         **kwargs,
     )
 
