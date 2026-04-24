@@ -10,6 +10,7 @@ class TestRestartConfig:
         assert d == {
             "auto_restart": False,
             "max_restarts": 3,
+            "restart_interval": 5.0,
             "memory_threshold": 90.0,
             "restart_count": 0,
         }

@@ -220,7 +220,7 @@ class TestAutoRestart:
         manager._current_process = mock_process
 
         config = LaunchConfig(server_path="/s", shell_command="/s")
-        restart_cfg = RestartConfig(auto_restart=True, max_restarts=3)
+        restart_cfg = RestartConfig(auto_restart=True, max_restarts=3, restart_interval=0)
         mock_monitor = MagicMock()
 
         with patch("src.services.process_manager.Popen", return_value=mock_new_process):
@@ -232,7 +232,7 @@ class TestAutoRestart:
 
             manager.disable_auto_restart()
 
-        assert any("Auto-restarting" in c[0] for c in callback_calls)
+        assert any("自动重启" in c[0] for c in callback_calls)
 
     def test_auto_restart_memory_threshold(self):
         callback_calls = []
@@ -286,7 +286,7 @@ class TestAutoRestart:
         manager._current_process = mock_process
 
         config = LaunchConfig(server_path="/s", shell_command="/s")
-        restart_cfg = RestartConfig(auto_restart=True, max_restarts=1)
+        restart_cfg = RestartConfig(auto_restart=True, max_restarts=1, restart_interval=0)
         mock_monitor = MagicMock()
 
         with patch("src.services.process_manager._POLL_INTERVAL", 0.2):

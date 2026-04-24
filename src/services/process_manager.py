@@ -201,8 +201,8 @@ class ProcessManager:
 
         rc = self._restart_config
         rc.restart_count += 1
-        logger.info("[DO_RESTART] restart_count=%d, max_restarts=%d", 
-                    rc.restart_count, rc.max_restarts)
+        logger.info("[DO_RESTART] restart_count=%d, max_restarts=%d, interval=%f", 
+                    rc.restart_count, rc.max_restarts, rc.restart_interval)
 
         if rc.restart_count > rc.max_restarts:
             logger.error("[DO_RESTART] limit_reached: max_restarts=%d", rc.max_restarts)
@@ -212,7 +212,14 @@ class ProcessManager:
             )
             return
 
-        self._log(f"Auto-restarting ({rc.restart_count}/{rc.max_restarts}): {reason}", "WARNING")
+        interval = rc.restart_interval
+        logger.info("[DO_RESTART] waiting %f seconds before restart", interval)
+        self._log(f"等待 {interval:.1f} 秒后自动重启 ({rc.restart_count}/{rc.max_restarts}): {reason}", "WARNING")
+        self._stop_event.wait(timeout=interval)
+
+        if self._stop_event.is_set():
+            logger.info("[DO_RESTART] stop_event_set, aborting")
+            return
 
         self.stop()
         try:

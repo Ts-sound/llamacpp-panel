@@ -46,6 +46,7 @@ class App:
         self._current_ssh_process: object | None = None
         self._current_process: object | None = None
         self._restart_config = RestartConfig()
+        self._ssh_auto_start_check_count: int = 0
 
     def _init_logging(self) -> None:
         from datetime import datetime
@@ -54,13 +55,18 @@ class App:
         os.makedirs(log_dir, exist_ok=True)
         log_file = os.path.join(log_dir, f"{datetime.now().strftime('%Y-%m-%d')}.txt")
         
-        file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
-        file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
         root_logger = logging.getLogger()
-        root_logger.addHandler(file_handler)
         root_logger.setLevel(logging.INFO)
         
-        logger.info("[INIT_LOGGING] log_file=%s", log_file)
+        file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
+        file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+        root_logger.addHandler(file_handler)
+        
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+        root_logger.addHandler(console_handler)
+        
+        logger.info("[INIT_LOGGING] log_file=%s, console_enabled=True", log_file)
 
     def _create_services(self) -> None:
         logger.info("[CREATE_SERVICES] starting")
@@ -82,6 +88,7 @@ class App:
             on_stop=self._on_stop,
             on_restart=self._on_restart,
             on_auto_restart=self._on_auto_restart_toggled,
+            on_auto_restart_config=self._on_auto_restart_config_changed,
         )
         self.toolbar.pack(side=tk.TOP, fill=tk.X)
 
@@ -158,8 +165,15 @@ class App:
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
             logger.info("[LOAD_SAVED_CONFIG] ssh_config_loaded: host=%s", ssh_config.remote_host)
 
-        self.toolbar.auto_restart.var.set(self._restart_config.auto_restart)
-        logger.info("[LOAD_SAVED_CONFIG] auto_restart=%s", self._restart_config.auto_restart)
+        self.toolbar.auto_restart_config.var.set(self._restart_config.auto_restart)
+        self.toolbar.set_auto_restart_config(
+            self._restart_config.max_restarts,
+            self._restart_config.restart_interval,
+            self._restart_config.memory_threshold,
+        )
+        logger.info("[LOAD_SAVED_CONFIG] auto_restart=%s, max=%d, interval=%f, threshold=%f",
+                    self._restart_config.auto_restart, self._restart_config.max_restarts,
+                    self._restart_config.restart_interval, self._restart_config.memory_threshold)
 
     def _setup_bindings(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
@@ -201,6 +215,10 @@ class App:
 
         self.toolbar.set_button_state("running")
         self.log_panel.log("服务器已启动", "INFO")
+        
+        if self.toolbar.get_auto_start_ssh():
+            logger.info("[ON_START] auto_start_ssh_enabled, will check server ready")
+            self._schedule_ssh_auto_start()
 
     def _on_stop(self) -> None:
         logger.info("[ON_STOP] stopping_server")
@@ -294,12 +312,63 @@ class App:
             except Exception as e:
                 logger.error("[ON_AUTO_RESTART] enable_error: %s", e)
                 self.log_panel.log(f"启用自动重启失败: {e}", "ERROR")
-                self.toolbar.auto_restart.var.set(False)
+                self.toolbar.auto_restart_config.var.set(False)
                 self._restart_config.auto_restart = False
         else:
             logger.info("[ON_AUTO_RESTART] disabling")
             self.process_manager.disable_auto_restart()
             self.log_panel.log("自动重启已禁用", "SYSTEM")
+
+    def _on_auto_restart_config_changed(self, max_restarts: int, interval: float, threshold: float) -> None:
+        logger.info("[ON_AUTO_RESTART_CONFIG] max=%d, interval=%f, threshold=%f",
+                    max_restarts, interval, threshold)
+        self._restart_config.max_restarts = max_restarts
+        self._restart_config.restart_interval = interval
+        self._restart_config.memory_threshold = threshold
+
+    def _schedule_ssh_auto_start(self) -> None:
+        self._ssh_auto_start_check_count = 0
+        self._check_server_ready_for_ssh()
+
+    def _check_server_ready_for_ssh(self) -> None:
+        if self._ssh_auto_start_check_count >= 10:
+            logger.warning("[SSH_AUTO_START] timeout, server not ready after 10 checks")
+            self.log_panel.log("SSH 自动启动超时: 服务器未就绪", "WARN")
+            return
+        
+        if not self.process_manager.is_running():
+            logger.warning("[SSH_AUTO_START] server not running")
+            return
+        
+        self._ssh_auto_start_check_count += 1
+        logger.info("[SSH_AUTO_START] check %d, checking port...", self._ssh_auto_start_check_count)
+        
+        launch_config = self.param_panel.get_launch_config()
+        port = 8080
+        for p in launch_config.parameters:
+            if p.name == "--port" and p.value:
+                try:
+                    port = int(p.value)
+                    break
+                except ValueError:
+                    pass
+        
+        import socket
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex(("127.0.0.1", port))
+            sock.close()
+            if result == 0:
+                logger.info("[SSH_AUTO_START] server ready on port %d, starting SSH", port)
+                self.log_panel.log(f"服务器就绪 (端口 {port})，自动启动 SSH...", "INFO")
+                cfg = self.ssh_panel.get_config()
+                self._on_ssh_connect(cfg)
+                return
+        except Exception as e:
+            logger.debug("[SSH_AUTO_START] socket_check_error: %s", e)
+        
+        self.root.after(1000, self._check_server_ready_for_ssh)
 
     def _on_ssh_config_loaded(self, ssh_config: SSHConfig | None) -> None:
         logger.info("[ON_SSH_CONFIG_LOADED] ssh_config=%s", ssh_config)
