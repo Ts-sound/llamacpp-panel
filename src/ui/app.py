@@ -53,9 +53,11 @@ class App:
         )
 
     def _create_ui(self) -> None:
+        from datetime import datetime
+
         log_dir = "log"
-        log_file = os.path.join(log_dir, "app.log")
         os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, f"{datetime.now().strftime('%Y-%m-%d')}.txt")
 
         file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
         file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
@@ -193,19 +195,23 @@ class App:
 
     def _on_ssh_connect(self, cfg: SSHConfig) -> None:
         self.ssh_panel.update_status(SSHState.CONNECTING)
+        self.toolbar.update_ssh_status("connecting")
         try:
             process = self.ssh_service.connect(cfg)
             self._current_ssh_process = process
             self.ssh_panel.update_status(SSHState.CONNECTED)
+            self.toolbar.update_ssh_status("connected")
             self.log_panel.log(f"SSH connected: {cfg.username}@{cfg.remote_host}", "INFO")
         except Exception as e:
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
+            self.toolbar.update_ssh_status("disconnected")
             self.log_panel.log(f"SSH connect failed: {e}", "ERROR")
 
     def _on_ssh_disconnect(self) -> None:
         self.ssh_service.disconnect(self._current_ssh_process)
         self._current_ssh_process = None
         self.ssh_panel.update_status(SSHState.DISCONNECTED)
+        self.toolbar.update_ssh_status("disconnected")
         self.log_panel.log("SSH disconnected", "INFO")
 
     def _on_auto_restart_toggled(self, enabled: bool) -> None:

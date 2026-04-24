@@ -35,8 +35,8 @@ class _MemoryBar(ttk.Frame):
         self.bar.configure(value=stats.percent)
 
 
-class _GPUBbar(ttk.Frame):
-    """GPU usage bar, initially hidden until GPU stats arrive."""
+class _GPUBar(ttk.Frame):
+    """GPU usage bar, shows placeholder when no GPU available."""
 
     def __init__(self, master: tk.Widget) -> None:
         super().__init__(master)
@@ -47,13 +47,11 @@ class _GPUBbar(ttk.Frame):
         )
         self.bar.pack(side=tk.LEFT, padx=(4, 0))
 
-    def show(self) -> None:
-        self.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
-
-    def hide(self) -> None:
-        self.pack_forget()
-
-    def update(self, stats: GPUStats) -> None:
+    def update(self, stats: GPUStats | None) -> None:
+        if stats is None:
+            self.lbl.configure(text="GPU: N/A")
+            self.bar.configure(value=0)
+            return
         if stats.total is not None and stats.used is not None:
             total_gb = stats.total / (1024 ** 3)
             self.lbl.configure(text=f"GPU: {stats.percent:.0f}% / {total_gb:.0f}G")
@@ -132,10 +130,19 @@ class Toolbar(ttk.Frame):
 
         self._register_styles()
 
-        self.memory_bar = _MemoryBar(self)
-        self.memory_bar.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
+        self._resource_frame = ttk.Frame(self)
+        self._resource_frame.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
 
-        self.gpu_bar = _GPUBbar(self)
+        self.memory_bar = _MemoryBar(self._resource_frame)
+        self.memory_bar.pack(side=tk.LEFT, padx=(0, 10))
+
+        self.gpu_bar = _GPUBar(self._resource_frame)
+        self.gpu_bar.pack(side=tk.LEFT, padx=(0, 10))
+
+        ttk.Label(self._resource_frame, text="SSH:").pack(side=tk.LEFT, padx=(0, 2))
+        self._ssh_indicator = tk.Canvas(self._resource_frame, width=12, height=12, highlightthickness=0)
+        self._ssh_indicator.pack(side=tk.LEFT)
+        self._draw_ssh_indicator("disconnected")
 
         self.control_buttons = _ControlButtons(
             self, on_start=on_start, on_stop=on_stop, on_restart=on_restart
@@ -183,13 +190,24 @@ class Toolbar(ttk.Frame):
         self.memory_bar.bar.configure(style=bar_style)
 
     def update_gpu_display(self, stats: GPUStats | None) -> None:
-        """Show/hide GPU bar and update values."""
-        if stats is None:
-            self.gpu_bar.hide()
-            return
-        self.gpu_bar.show()
+        """Update GPU bar values, show placeholder when None."""
         self.gpu_bar.update(stats)
 
     def set_button_state(self, state: str) -> None:
         """Set button enabled/disabled state from the state table."""
         self.control_buttons.set_state(state)
+
+    def _draw_ssh_indicator(self, status: str) -> None:
+        """Draw SSH status indicator circle."""
+        self._ssh_indicator.delete("all")
+        colors = {
+            "disconnected": "#888888",
+            "connecting": "#FFA500",
+            "connected": "#00CC00",
+        }
+        color = colors.get(status, "#888888")
+        self._ssh_indicator.create_oval(1, 1, 11, 11, fill=color, outline="")
+
+    def update_ssh_status(self, status: str) -> None:
+        """Update SSH status indicator."""
+        self._draw_ssh_indicator(status)

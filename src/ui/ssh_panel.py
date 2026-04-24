@@ -37,7 +37,6 @@ class SSHPanel(tk.Frame):
 
         self._state = SSHState.DISCONNECTED
         self._indicator: tk.Canvas | None = None
-        self._status_label: ttk.Label | None = None
         self._btn_connect: ttk.Button | None = None
         self._btn_disconnect: ttk.Button | None = None
 
@@ -106,11 +105,6 @@ class SSHPanel(tk.Frame):
         self._indicator.grid(row=row, column=0, padx=5, pady=3, sticky=tk.W)
         self._draw_circle(SSHState.DISCONNECTED)
 
-        self._status_label = ttk.Label(self, text="未连接")
-        self._status_label.grid(
-            row=row, column=1, columnspan=2, padx=5, pady=3, sticky=tk.W,
-        )
-
     def _build_buttons(self) -> None:
         row = 5
         btn_frame = ttk.Frame(self)
@@ -177,14 +171,6 @@ class SSHPanel(tk.Frame):
     def update_status(self, state: str) -> None:
         self._state = state
         self._draw_circle(state)
-
-        labels = {
-            SSHState.DISCONNECTED: "未连接",
-            SSHState.CONNECTING: "连接中...",
-            SSHState.CONNECTED: "已连接",
-        }
-        if self._status_label is not None:
-            self._status_label.config(text=labels.get(state, "未知"))
 
         if self._btn_connect is not None:
             connect_state = (
