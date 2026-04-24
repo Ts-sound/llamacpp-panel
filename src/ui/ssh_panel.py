@@ -1,0 +1,162 @@
+"""SSH tunnel configuration panel for llamacpp-panel."""
+
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import ttk
+from typing import Callable
+
+from src.config import (
+    SSH_LOCAL_PORT,
+    SSH_REMOTE_HOST,
+    SSH_REMOTE_PORT,
+    SSH_USERNAME,
+)
+from src.models.ssh_config import SSHConfig, SSHState
+from src.services.ssh_service import SSHService
+
+
+class SSHPanel(tk.Frame):
+    def __init__(
+        self,
+        master: tk.Master | None,
+        ssh_service: SSHService,
+        on_connect: Callable[[SSHConfig], None] | None = None,
+        on_disconnect: Callable[[], None] | None = None,
+    ) -> None:
+        super().__init__(master)
+        self._service = ssh_service
+        self._on_connect = on_connect
+        self._on_disconnect = on_disconnect
+
+        self._local_port_var = tk.StringVar(value=str(SSH_LOCAL_PORT))
+        self._remote_port_var = tk.StringVar(value=str(SSH_REMOTE_PORT))
+        self._remote_host_var = tk.StringVar(value=SSH_REMOTE_HOST)
+        self._username_var = tk.StringVar(value=SSH_USERNAME)
+
+        self._state = SSHState.DISCONNECTED
+        self._indicator: tk.Canvas | None = None
+        self._status_label: ttk.Label | None = None
+        self._btn_connect: ttk.Button | None = None
+        self._btn_disconnect: ttk.Button | None = None
+
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        for i in range(4):
+            self.columnconfigure(i, weight=1)
+
+        self._build_config_grid()
+        self._build_status_row()
+        self._build_buttons()
+
+    def _build_config_grid(self) -> None:
+        labels = [
+            ("本地端口:", 0),
+            ("远程端口:", 0),
+            ("远程IP:", 2),
+            ("用户名:", 2),
+        ]
+        vars_list = [
+            self._local_port_var,
+            self._remote_port_var,
+            self._remote_host_var,
+            self._username_var,
+        ]
+
+        row = 0
+        for label_text, col_offset in labels:
+            ttk.Label(self, text=label_text).grid(
+                row=row, column=col_offset, sticky=tk.W, padx=5, pady=3,
+            )
+            entry = ttk.Entry(
+                self, textvariable=vars_list[row], width=18,
+            )
+            entry.grid(row=row, column=col_offset + 1, sticky=tk.W, padx=5, pady=3)
+            row += 1
+
+    def _build_status_row(self) -> None:
+        row = 4
+        self._indicator = tk.Canvas(
+            self, width=12, height=12, highlightthickness=0,
+        )
+        self._indicator.grid(row=row, column=0, padx=5, pady=3, sticky=tk.W)
+        self._draw_circle(SSHState.DISCONNECTED)
+
+        self._status_label = ttk.Label(self, text="未连接")
+        self._status_label.grid(
+            row=row, column=1, columnspan=2, padx=5, pady=3, sticky=tk.W,
+        )
+
+    def _build_buttons(self) -> None:
+        row = 5
+        btn_frame = ttk.Frame(self)
+        btn_frame.grid(row=row, column=0, columnspan=4, pady=5)
+
+        self._btn_connect = ttk.Button(
+            btn_frame, text="连接", command=self._on_connect_clicked,
+        )
+        self._btn_connect.pack(side=tk.LEFT, padx=5)
+
+        self._btn_disconnect = ttk.Button(
+            btn_frame, text="断开", command=self._on_disconnect_clicked,
+            state=tk.DISABLED,
+        )
+        self._btn_disconnect.pack(side=tk.LEFT, padx=5)
+
+    def _draw_circle(self, state: str) -> None:
+        if self._indicator is None:
+            return
+        self._indicator.delete("all")
+        color = self._state_color(state)
+        self._indicator.create_oval(
+            1, 1, 11, 11, fill=color, outline="",
+        )
+
+    @staticmethod
+    def _state_color(state: str) -> str:
+        return {
+            SSHState.DISCONNECTED: "#888888",
+            SSHState.CONNECTING: "#FFA500",
+            SSHState.CONNECTED: "#00CC00",
+        }.get(state, "#888888")
+
+    def get_config(self) -> SSHConfig:
+        return SSHConfig(
+            local_port=int(self._local_port_var.get()),
+            remote_port=int(self._remote_port_var.get()),
+            remote_host=self._remote_host_var.get(),
+            username=self._username_var.get(),
+        )
+
+    def update_status(self, state: str) -> None:
+        self._state = state
+        self._draw_circle(state)
+
+        labels = {
+            SSHState.DISCONNECTED: "未连接",
+            SSHState.CONNECTING: "连接中...",
+            SSHState.CONNECTED: "已连接",
+        }
+        if self._status_label is not None:
+            self._status_label.config(text=labels.get(state, "未知"))
+
+        if self._btn_connect is not None:
+            connect_state = (
+                tk.NORMAL if state == SSHState.DISCONNECTED else tk.DISABLED
+            )
+            self._btn_connect.config(state=connect_state)
+
+        if self._btn_disconnect is not None:
+            disconnect_state = (
+                tk.NORMAL if state in (SSHState.CONNECTING, SSHState.CONNECTED) else tk.DISABLED
+            )
+            self._btn_disconnect.config(state=disconnect_state)
+
+    def _on_connect_clicked(self) -> None:
+        if self._on_connect is not None:
+            self._on_connect(self.get_config())
+
+    def _on_disconnect_clicked(self) -> None:
+        if self._on_disconnect is not None:
+            self._on_disconnect()
