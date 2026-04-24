@@ -58,17 +58,17 @@ class SSHPanel(tk.Frame):
         labels = [
             ("本地端口:", 0),
             ("远程端口:", 0),
-            ("SSH端口:", 0),
             ("远程IP:", 2),
             ("用户名:", 2),
+            ("SSH端口:", 2),
             ("密钥:", 2),
         ]
         vars_list = [
             self._local_port_var,
             self._remote_port_var,
-            self._ssh_port_var,
             self._remote_host_var,
             self._username_var,
+            self._ssh_port_var,
             self._key_file_var,
         ]
 

@@ -92,18 +92,28 @@ class ProcessManager:
             logger.info("[STOP_PROC] no_process_to_stop")
             return
         
-        logger.info("[STOP_PROC] pid=%d, stopping", target.pid)
+        pid = target.pid
+        logger.info("[STOP_PROC] pid=%d, stopping", pid)
         
-        self._stop_output_threads()
+        if target.stdout:
+            try:
+                target.stdout.close()
+            except Exception as e:
+                logger.warning("[STOP_PROC] stdout_close_error: %s", e)
+        if target.stderr:
+            try:
+                target.stderr.close()
+            except Exception as e:
+                logger.warning("[STOP_PROC] stderr_close_error: %s", e)
         
-        logger.info("[STOP_PROC] killing_process")
+        logger.info("[STOP_PROC] pid=%d, calling kill_process", pid)
         kill_process(target, timeout=5)
-        logger.info("[STOP_PROC] process_killed")
+        logger.info("[STOP_PROC] pid=%d, kill_process_done", pid)
         
         if target is self._current_process:
             self._current_process = None
         
-        logger.info("[STOP_PROC] pid=%d, stopped", target.pid)
+        logger.info("[STOP_PROC] pid=%d, stopped", pid)
         self._log("Server stopped", "INFO")
 
     def _stop_output_threads(self) -> None:
