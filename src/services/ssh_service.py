@@ -17,6 +17,11 @@ class SSHService:
         self._lock = threading.Lock()
 
     def build_command(self, cfg: SSHConfig) -> str:
+        logger.info("[SSH_BUILD_CMD] local_port=%d, remote_port=%d, host=%s, user=%s",
+                    cfg.local_port, cfg.remote_port, cfg.remote_host, cfg.username)
+        logger.debug("[SSH_BUILD_CMD] key_file=%s, password_set=%s", 
+                     cfg.key_file, bool(cfg.password))
+        
         parts = ["ssh"]
         if cfg.password:
             parts = ["sshpass", "-p", cfg.password] + parts
@@ -30,28 +35,37 @@ class SSHService:
         if cfg.key_file:
             parts.extend(["-i", cfg.key_file])
         parts.append(f"{cfg.username}@{cfg.remote_host}")
-        return " ".join(shlex.quote(p) for p in parts)
+        
+        command = " ".join(shlex.quote(p) for p in parts)
+        logger.info("[SSH_BUILD_CMD] result=%s", command)
+        return command
 
     def connect(self, cfg: SSHConfig) -> Popen[bytes]:
         command = self.build_command(cfg)
-        logger.info("SSH connecting: %s", command)
+        logger.info("[SSH_CONNECT] host=%s, user=%s, command=%s", 
+                    cfg.remote_host, cfg.username, command)
+        
         try:
             process = Popen(
                 shlex.split(command),
                 stdout=PIPE,
                 stderr=PIPE,
             )
+            logger.info("[SSH_CONNECT] pid=%d, process_started", process.pid)
         except OSError as e:
+            logger.error("[SSH_CONNECT] error: %s", e)
             raise SSHError(f"Failed to start SSH process: {e}")
-        logger.info("SSH process started, pid=%s", process.pid)
+        
         return process
 
     def disconnect(self, process: Popen[bytes] | None) -> None:
         with self._lock:
             if process is None:
+                logger.info("[SSH_DISCONNECT] no_process")
                 return
-            logger.info("Disconnecting SSH process, pid=%s", process.pid)
+            logger.info("[SSH_DISCONNECT] pid=%d, stopping", process.pid)
             kill_process(process)
+            logger.info("[SSH_DISCONNECT] pid=%d, stopped", process.pid)
 
     def get_state(self, process: Popen[bytes] | None) -> str:
         if process is None:

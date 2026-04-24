@@ -26,6 +26,8 @@ from src.ui.toolbar import Toolbar
 if TYPE_CHECKING:
     from src.models.server_config import LaunchConfig
 
+logger = logging.getLogger(__name__)
+
 
 class App:
     def __init__(self) -> None:
@@ -99,94 +101,131 @@ class App:
         notebook.add(self.ssh_panel, text="SSH 映射")
 
     def _wire_callbacks(self) -> None:
+        logger.info("[WIRE_CALLBACKS] starting_monitoring, interval=%f", MONITOR_INTERVAL)
         self.monitor_service.start_monitoring(
             interval=MONITOR_INTERVAL,
             callback=lambda s, g: self.root.after(
                 0, lambda ms=s, gs=g: self._on_monitor_update(ms, gs)
             ),
         )
-        self.log_panel.log("Application started", "SYSTEM")
+        self.log_panel.log("应用已启动", "SYSTEM")
+        logger.info("[APP] started")
 
     def _safe_log(self, message: str, level: str) -> None:
-        self.root.after(0, lambda: self.log_panel.log(message, level))
+        if level in ("STDOUT", "STDERR"):
+            logger.debug("[%s] %s", level, message)
+            if level == "STDERR" and message:
+                self.root.after(0, lambda: self.log_panel.log(message, "ERROR"))
+        else:
+            self.root.after(0, lambda: self.log_panel.log(message, level))
 
     def _load_saved_config(self) -> None:
+        logger.info("[LOAD_SAVED_CONFIG] loading")
         result = self.config_service.load()
         if result is None:
+            logger.info("[LOAD_SAVED_CONFIG] no_saved_config")
             return
 
         launch_config, restart_config, ssh_config = result
         self._restart_config = restart_config
+        logger.info("[LOAD_SAVED_CONFIG] launch_server_path=%s, param_count=%d",
+                    launch_config.server_path, len(launch_config.parameters))
 
         if launch_config.server_path:
             self.param_panel.set_server_path(launch_config.server_path)
             self.param_panel.load_parameters(launch_config.parameters)
+            logger.info("[LOAD_SAVED_CONFIG] server_path_set, parameters_loaded")
 
         if launch_config.parameters:
             for p in launch_config.parameters:
                 if p.name == "-m" and p.value:
                     self.param_panel.set_model_path(p.value)
+                    logger.info("[LOAD_SAVED_CONFIG] model_path_set: %s", p.value)
                     break
 
         if ssh_config.remote_host:
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
+            logger.info("[LOAD_SAVED_CONFIG] ssh_config_loaded: host=%s", ssh_config.remote_host)
 
         self.toolbar.auto_restart.var.set(self._restart_config.auto_restart)
+        logger.info("[LOAD_SAVED_CONFIG] auto_restart=%s", self._restart_config.auto_restart)
 
     def _setup_bindings(self) -> None:
         self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
 
     def _on_start(self) -> None:
+        logger.info("[ON_START] getting_launch_config")
+        self.log_panel.log("正在启动服务器...", "SYSTEM")
+        
         try:
             launch_config = self.param_panel.get_launch_config()
-        except Exception:
+            logger.info("[ON_START] server_path=%s, param_count=%d",
+                        launch_config.server_path, len(launch_config.parameters))
+        except Exception as e:
+            logger.error("[ON_START] get_config_error: %s", e)
             messagebox.showerror("错误", "无法获取启动配置")
             return
 
         errors = self.param_service.validate(launch_config)
         if errors:
+            logger.warning("[ON_START] validation_failed: %s", errors)
             errmsg = "\n".join(errors)
             messagebox.showwarning("验证失败", f"配置验证失败:\n{errmsg}")
+            self.log_panel.log("启动失败: 配置验证错误", "ERROR")
             return
 
+        logger.info("[ON_START] validation_passed")
         self.toolbar.set_button_state("starting")
-        self.log_panel.log("Starting server...", "SYSTEM")
 
         try:
+            logger.info("[ON_START] starting_process")
             process = self.process_manager.start(launch_config)
             self._current_process = process
+            logger.info("[ON_START] process_started, pid=%d", process.pid)
         except Exception as e:
-            self.log_panel.log(f"Failed to start: {e}", "ERROR")
+            logger.error("[ON_START] start_error: %s", e)
+            self.log_panel.log(f"启动失败: {e}", "ERROR")
             self.toolbar.set_button_state("stopped")
             return
 
         self.toolbar.set_button_state("running")
-        self.log_panel.log(f"Server started: {launch_config.shell_command}", "INFO")
+        self.log_panel.log("服务器已启动", "INFO")
 
     def _on_stop(self) -> None:
-        self.log_panel.log("Stopping server...", "SYSTEM")
+        logger.info("[ON_STOP] stopping_server")
+        self.log_panel.log("正在停止服务器...", "SYSTEM")
+        
         self.process_manager.stop()
         self.toolbar.set_button_state("stopped")
-        self.log_panel.log("Server stopped", "INFO")
+        
+        logger.info("[ON_STOP] server_stopped")
+        self.log_panel.log("服务器已停止", "INFO")
 
     def _on_restart(self) -> None:
-        self.log_panel.log("Restarting server...", "SYSTEM")
+        logger.info("[ON_RESTART] restarting_server")
+        self.log_panel.log("正在重启服务器...", "SYSTEM")
+        
         self.process_manager.stop()
         self.toolbar.set_button_state("starting")
 
         try:
+            logger.info("[ON_RESTART] getting_launch_config")
             launch_config = self.param_panel.get_launch_config()
             errors = self.param_service.validate(launch_config)
             if errors:
-                self.log_panel.log(f"Validation failed: {'; '.join(errors)}", "ERROR")
+                logger.warning("[ON_RESTART] validation_failed: %s", errors)
+                self.log_panel.log("重启失败: 配置验证错误", "ERROR")
                 self.toolbar.set_button_state("stopped")
                 return
 
+            logger.info("[ON_RESTART] validation_passed, starting_process")
             self.process_manager.start(launch_config)
             self.toolbar.set_button_state("running")
-            self.log_panel.log("Server restarted", "INFO")
+            logger.info("[ON_RESTART] server_restarted")
+            self.log_panel.log("服务器已重启", "INFO")
         except Exception as e:
-            self.log_panel.log(f"Failed to restart: {e}", "ERROR")
+            logger.error("[ON_RESTART] error: %s", e)
+            self.log_panel.log(f"重启失败: {e}", "ERROR")
             self.toolbar.set_button_state("stopped")
 
     def _on_monitor_update(self, stats: MemoryStats, gpu_stats: object | None = None) -> None:
@@ -194,52 +233,75 @@ class App:
         self.toolbar.update_gpu_display(gpu_stats)
 
     def _on_ssh_connect(self, cfg: SSHConfig) -> None:
+        logger.info("[ON_SSH_CONNECT] host=%s, user=%s, local_port=%d, remote_port=%d",
+                    cfg.remote_host, cfg.username, cfg.local_port, cfg.remote_port)
+        self.log_panel.log("正在连接 SSH...", "SYSTEM")
+        
         self.ssh_panel.update_status(SSHState.CONNECTING)
         self.toolbar.update_ssh_status("connecting")
+        
         try:
             process = self.ssh_service.connect(cfg)
             self._current_ssh_process = process
             self.ssh_panel.update_status(SSHState.CONNECTED)
             self.toolbar.update_ssh_status("connected")
-            self.log_panel.log(f"SSH connected: {cfg.username}@{cfg.remote_host}", "INFO")
+            logger.info("[ON_SSH_CONNECT] connected, pid=%d", process.pid)
+            self.log_panel.log(f"SSH 已连接: {cfg.username}@{cfg.remote_host}", "INFO")
         except Exception as e:
+            logger.error("[ON_SSH_CONNECT] error: %s", e)
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
             self.toolbar.update_ssh_status("disconnected")
-            self.log_panel.log(f"SSH connect failed: {e}", "ERROR")
+            self.log_panel.log(f"SSH 连接失败: {e}", "ERROR")
 
     def _on_ssh_disconnect(self) -> None:
+        logger.info("[ON_SSH_DISCONNECT] disconnecting")
+        self.log_panel.log("正在断开 SSH...", "SYSTEM")
+        
         self.ssh_service.disconnect(self._current_ssh_process)
         self._current_ssh_process = None
         self.ssh_panel.update_status(SSHState.DISCONNECTED)
         self.toolbar.update_ssh_status("disconnected")
-        self.log_panel.log("SSH disconnected", "INFO")
+        
+        logger.info("[ON_SSH_DISCONNECT] disconnected")
+        self.log_panel.log("SSH 已断开", "INFO")
 
     def _on_auto_restart_toggled(self, enabled: bool) -> None:
+        logger.info("[ON_AUTO_RESTART] enabled=%s", enabled)
         self._restart_config.auto_restart = enabled
 
         if enabled:
             try:
                 launch_config = self.param_panel.get_launch_config()
+                logger.info("[ON_AUTO_RESTART] enabling, max_restarts=%d, memory_threshold=%f",
+                            self._restart_config.max_restarts, self._restart_config.memory_threshold)
                 self.process_manager.enable_auto_restart(
                     launch_config,
                     self._restart_config,
                     self.monitor_service,
                 )
-                self.log_panel.log("Auto-restart enabled", "SYSTEM")
+                self.log_panel.log("自动重启已启用", "SYSTEM")
             except Exception as e:
-                self.log_panel.log(f"Failed to enable auto-restart: {e}", "ERROR")
+                logger.error("[ON_AUTO_RESTART] enable_error: %s", e)
+                self.log_panel.log(f"启用自动重启失败: {e}", "ERROR")
                 self.toolbar.auto_restart.var.set(False)
                 self._restart_config.auto_restart = False
         else:
+            logger.info("[ON_AUTO_RESTART] disabling")
             self.process_manager.disable_auto_restart()
-            self.log_panel.log("Auto-restart disabled", "SYSTEM")
+            self.log_panel.log("自动重启已禁用", "SYSTEM")
 
     def _on_save_template(self, name: str) -> None:
         params = self.param_panel.get_current_params()
         if self.param_panel.get_model_path():
-            params.insert(0, Parameter("-m", self.param_panel.get_model_path(), "model", True, "模型路径"))
+            params.insert(0, Parameter(
+                name="-m",
+                value=self.param_panel.get_model_path(),
+                category="model",
+                required=True,
+                description="模型路径",
+            ))
         self.param_service.save_template(name, params)
-        self.log_panel.log(f"Template saved: {name}", "INFO")
+        self.log_panel.log(f"模板已保存: {name}", "INFO")
 
     def _on_save_as_template(self) -> None:
         from tkinter import simpledialog
@@ -248,15 +310,21 @@ class App:
             return
         params = self.param_panel.get_current_params()
         if self.param_panel.get_model_path():
-            params.insert(0, Parameter("-m", self.param_panel.get_model_path(), "model", True, "模型路径"))
+            params.insert(0, Parameter(
+                name="-m",
+                value=self.param_panel.get_model_path(),
+                category="model",
+                required=True,
+                description="模型路径",
+            ))
         self.param_service.save_template(name, params)
-        self.log_panel.log(f"Template saved: {name}", "INFO")
-        # Refresh template combobox
+        self.log_panel.log(f"模板已保存: {name}", "INFO")
         self.param_panel._template_row.cmb_template["values"] = self.param_service.get_template_names()
         self.param_panel._template_row.cmb_template.set(name)
 
     def _on_closing(self) -> None:
-        self.log_panel.log("Shutting down...", "SYSTEM")
+        logger.info("[ON_CLOSING] shutting_down")
+        self.log_panel.log("正在关闭应用...", "SYSTEM")
 
         self.process_manager.stop()
         self.monitor_service.stop_monitoring()
@@ -265,10 +333,14 @@ class App:
         try:
             launch_config = self.param_panel.get_launch_config()
             ssh_config = self.ssh_panel.get_config()
+            logger.info("[ON_CLOSING] saving_config")
             self.config_service.save(launch_config, self._restart_config, ssh_config)
+            logger.info("[ON_CLOSING] config_saved")
         except Exception as e:
-            self.log_panel.log(f"Failed to save config: {e}", "ERROR")
+            logger.error("[ON_CLOSING] save_error: %s", e)
+            self.log_panel.log(f"保存配置失败: {e}", "ERROR")
 
+        logger.info("[ON_CLOSING] app_closed")
         self.root.destroy()
 
     def run(self) -> None:

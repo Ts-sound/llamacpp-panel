@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import pathlib
 
 from src.models.server_config import LaunchConfig, Parameter
 from src.utils.cross_platform import get_cpu_count
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_path(path: str) -> str:
@@ -75,16 +78,28 @@ class ParamService:
 
     def get_template_names(self) -> list[str]:
         all_names = set(DEFAULT_TEMPLATES.keys()) | set(self._user_templates.keys())
-        return sorted(all_names)
+        result = sorted(all_names)
+        logger.debug("[GET_TEMPLATE_NAMES] count=%d, names=%s", len(result), result)
+        return result
 
     def get_template(self, name: str) -> list[Parameter]:
+        logger.info("[GET_TEMPLATE] name=%s", name)
+        
         if name in self._user_templates:
-            return copy.deepcopy(self._user_templates[name])
+            params = copy.deepcopy(self._user_templates[name])
+            logger.info("[GET_TEMPLATE] found_user_template: param_count=%d", len(params))
+            return params
         if name in DEFAULT_TEMPLATES:
-            return copy.deepcopy(DEFAULT_TEMPLATES[name])
+            params = copy.deepcopy(DEFAULT_TEMPLATES[name])
+            logger.info("[GET_TEMPLATE] found_default_template: param_count=%d", len(params))
+            return params
+        
+        logger.warning("[GET_TEMPLATE] not_found: name=%s", name)
         return []
 
     def save_template(self, name: str, params: list[Parameter]) -> None:
+        logger.info("[SAVE_TEMPLATE] name=%s, param_count=%d", name, len(params))
+        
         data = {
             "name": name,
             "parameters": [
@@ -99,29 +114,43 @@ class ParamService:
             ],
         }
         target = self._template_dir / f"{name}.json"
+        logger.debug("[SAVE_TEMPLATE] target_path=%s", target)
+        
         with open(target, "w", encoding="utf-8") as fh:
             json.dump(data, fh, ensure_ascii=False, indent=2)
+        
         self._user_templates[name] = copy.deepcopy(params)
+        logger.info("[SAVE_TEMPLATE] success: %s", target)
 
     def build_command(self, config: LaunchConfig) -> str:
+        logger.info("[BUILD_CMD] server_path=%s", config.server_path)
+        
         parts = [_normalize_path(config.server_path)]
-
+        
         for param in config.parameters:
+            logger.debug("[BUILD_CMD] param: name=%s, value=%s, required=%s", 
+                         param.name, param.value, param.required)
             if param.value:
                 parts.extend([param.name, param.value])
             else:
                 parts.append(param.name)
-
-        return " ".join(parts)
+        
+        command = " ".join(parts)
+        logger.info("[BUILD_CMD] result=%s", command)
+        return command
 
     def validate(self, config: LaunchConfig) -> list[str]:
+        logger.info("[VALIDATE] server_path=%s, param_count=%d", 
+                    config.server_path, len(config.parameters))
         errors: list[str] = []
 
         if not _validate_executable(config.server_path):
+            logger.warning("[VALIDATE] executable_invalid: %s", config.server_path)
             errors.append("服务器可执行文件不存在或不可执行")
 
         for param in config.parameters:
             if param.required and not param.value:
+                logger.warning("[VALIDATE] required_param_missing: name=%s", param.name)
                 errors.append(f"必填参数 {param.name} 的值为空")
 
         port_param = next(
@@ -132,8 +161,10 @@ class ParamService:
             try:
                 port = int(port_param.value)
                 if port < 1 or port > 65535:
+                    logger.warning("[VALIDATE] port_out_of_range: %s", port_param.value)
                     errors.append(f"端口号 {port_param.value} 超出范围")
             except ValueError:
+                logger.warning("[VALIDATE] port_invalid: %s", port_param.value)
                 errors.append(f"端口号 {port_param.value} 超出范围")
 
         threads_param = next(
@@ -145,8 +176,12 @@ class ParamService:
                 threads = int(threads_param.value)
                 max_threads = get_cpu_count()
                 if threads < 1 or threads > max_threads:
+                    logger.warning("[VALIDATE] threads_out_of_range: %s (max=%d)", 
+                                   threads_param.value, max_threads)
                     errors.append(f"线程数 {threads_param.value} 超出范围")
             except ValueError:
+                logger.warning("[VALIDATE] threads_invalid: %s", threads_param.value)
                 errors.append(f"线程数 {threads_param.value} 超出范围")
 
+        logger.info("[VALIDATE] result: error_count=%d, errors=%s", len(errors), errors)
         return errors

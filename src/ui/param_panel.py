@@ -114,7 +114,13 @@ class ParamPanel(ttk.Frame):
     def get_launch_config(self) -> LaunchConfig:
         params = list(self._parameters)
         if self._model_path:
-            params.insert(0, Parameter("-m", self._model_path, "model", True, "模型路径"))
+            params.insert(0, Parameter(
+                name="-m",
+                value=self._model_path,
+                category="model",
+                required=True,
+                description="模型路径",
+            ))
         cmd = self._param_service.build_command(LaunchConfig(
             server_path=self._server_path,
             parameters=params,
@@ -131,7 +137,13 @@ class ParamPanel(ttk.Frame):
     def update_command_preview(self) -> None:
         params = list(self._parameters)
         if self._model_path:
-            params.insert(0, Parameter("-m", self._model_path, "model", True, "模型路径"))
+            params.insert(0, Parameter(
+                name="-m",
+                value=self._model_path,
+                category="model",
+                required=True,
+                description="模型路径",
+            ))
         config = LaunchConfig(
             server_path=self._server_path,
             shell_command="",

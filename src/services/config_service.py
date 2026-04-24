@@ -29,6 +29,8 @@ class ConfigService:
         restart_config: RestartConfig,
         ssh_config: SSHConfig,
     ) -> None:
+        logger.info("[SAVE_CONFIG] path=%s", self._config_path)
+        
         with self._lock:
             data: dict[str, Any] = {
                 "launch": launch_config.to_dict(),
@@ -36,6 +38,7 @@ class ConfigService:
                 "ssh": ssh_config.to_dict(),
                 "history": [h.to_dict() for h in self._history],
             }
+            logger.debug("[SAVE_CONFIG] data_keys=%s", list(data.keys()))
 
             self._config_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -44,38 +47,51 @@ class ConfigService:
                     dir=str(self._config_path.parent),
                     suffix=".tmp",
                 )
+                logger.debug("[SAVE_CONFIG] tmp_path=%s", tmp_path)
                 try:
                     with os.fdopen(fd, "w", encoding="utf-8") as f:
                         json.dump(data, f, indent=2, ensure_ascii=False)
                     Path(tmp_path).replace(self._config_path)
-                except Exception:
+                    logger.info("[SAVE_CONFIG] success: %s", self._config_path)
+                except Exception as e:
                     Path(tmp_path).unlink(missing_ok=True)
+                    logger.error("[SAVE_CONFIG] write_error: %s", e)
                     raise
             except Exception as e:
+                logger.error("[SAVE_CONFIG] error: %s", e)
                 raise ConfigError(f"Failed to save config: {e}") from e
 
     def load(
         self,
     ) -> tuple[LaunchConfig, RestartConfig, SSHConfig] | None:
+        logger.info("[LOAD_CONFIG] path=%s", self._config_path)
+        
         with self._lock:
             if not self._config_path.exists():
+                logger.info("[LOAD_CONFIG] file_not_found, returning_none")
                 return None
 
             try:
                 content = self._config_path.read_text(encoding="utf-8")
                 data: dict[str, Any] = json.loads(content)
+                logger.debug("[LOAD_CONFIG] data_keys=%s", list(data.keys()))
             except (json.JSONDecodeError, OSError) as e:
-                logger.warning("Failed to load config: %s", e)
+                logger.warning("[LOAD_CONFIG] parse_error: %s", e)
                 return None
 
             launch = LaunchConfig.from_dict(data.get("launch", {}))
             restart = RestartConfig.from_dict(data.get("restart", {}))
             ssh = SSHConfig.from_dict(data.get("ssh", {}))
+            logger.info("[LOAD_CONFIG] launch_server_path=%s, param_count=%d",
+                        launch.server_path, len(launch.parameters))
+            logger.info("[LOAD_CONFIG] restart_auto_restart=%s, max_restarts=%d",
+                        restart.auto_restart, restart.max_restarts)
 
             self._history = [
                 HistoryEntry.from_dict(h) for h in data.get("history", [])
             ]
 
+            logger.info("[LOAD_CONFIG] success")
             return launch, restart, ssh
 
     def save_history(self, entry: HistoryEntry) -> None:
