@@ -29,6 +29,8 @@ class ProcessManager:
         self._current_process: Popen[bytes] | None = None
         self._launch_config: LaunchConfig | None = None
         self._restart_config: RestartConfig | None = None
+        self._stdout_thread: threading.Thread | None = None
+        self._stderr_thread: threading.Thread | None = None
 
     def start(self, config: LaunchConfig) -> Popen[bytes]:
         args = shlex.split(config.shell_command)
@@ -59,12 +61,26 @@ class ProcessManager:
 
         self._current_process = process
         self._log("Server started", "INFO")
+
+        self._stdout_thread = threading.Thread(
+            target=self._read_output, args=(process.stdout, "INFO"), daemon=True,
+        )
+        self._stderr_thread = threading.Thread(
+            target=self._read_output, args=(process.stderr, "ERROR"), daemon=True,
+        )
+        self._stdout_thread.start()
+        self._stderr_thread.start()
+
         return process
 
     def stop(self, process: Popen[bytes] | None = None) -> None:
         target = process if process is not None else self._current_process
         if target is None:
             return
+        if target.stdout:
+            target.stdout.close()
+        if target.stderr:
+            target.stderr.close()
         kill_process(target, timeout=5)
         if target is self._current_process:
             self._current_process = None
@@ -157,6 +173,17 @@ class ProcessManager:
             self.start(self._launch_config)
         except ProcessError as exc:
             self._log(f"Auto-restart failed: {exc}", "ERROR")
+
+    def _read_output(self, stream, level: str) -> None:
+        if stream is None:
+            return
+        try:
+            for line in iter(stream.readline, ""):
+                line = line.rstrip("\n\r")
+                if line:
+                    self._log(line, level)
+        except Exception:
+            pass
 
     def _log(self, message: str, level: str) -> None:
         log_method = {

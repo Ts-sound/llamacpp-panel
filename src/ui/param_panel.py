@@ -25,7 +25,6 @@ class ParamPanel(ttk.Frame):
         self._model_path: str = ""
 
         self._on_file_selected: Callable[[str], None] = lambda p: None
-        self._on_history_selected: Callable[[str], None] = lambda p: None
         self._on_model_selected: Callable[[str], None] = lambda p: None
         self._on_load_template: Callable[[str], None] = lambda n: None
         self._on_save_template: Callable[[str], None] = lambda n: None
@@ -51,8 +50,7 @@ class ParamPanel(ttk.Frame):
         self._cmd_preview.pack(fill=tk.X, padx=5, pady=(0, 5))
 
         self._file_row.on_select_file = self._on_select_file
-        self._file_row.on_history_change = self._on_history_change
-        self._model_row.on_select = self._on_model_selected
+        self._model_row.on_select = self._handle_model_selected
         self._template_row.on_load = self._on_load_template_clicked
         self._template_row.on_save = self._on_save_template_clicked
         self._template_row.on_save_as = self._on_save_as_template_clicked
@@ -66,12 +64,7 @@ class ParamPanel(ttk.Frame):
         self._file_row.set_path(path)
         self._on_file_selected(path)
 
-    def _on_history_change(self, path: str) -> None:
-        self._server_path = path
-        self._file_row.set_path(path)
-        self._on_history_selected(path)
-
-    def _on_model_selected(self, path: str) -> None:
+    def _handle_model_selected(self, path: str) -> None:
         self._model_path = path
         self._model_row.set_model(path)
         self._on_model_selected(path)
@@ -166,34 +159,21 @@ class FileSelectRow(ttk.Frame):
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master)
         self.on_select_file: Callable[[], None] = lambda: None
-        self.on_history_change: Callable[[str], None] = lambda p: None
 
         self.btn_select_file = ttk.Button(self, text="选择启动文件", command=self._on_click)
-        self.lbl_server_path = ttk.Label(self, text="未选择", width=40)
-        self.cmb_history = ttk.Combobox(self, state="readonly", width=40)
+        self.lbl_server_path = ttk.Label(self, text="未选择")
 
         self.btn_select_file.pack(side=tk.LEFT, padx=(0, 5))
         self.lbl_server_path.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.cmb_history.pack(side=tk.RIGHT, padx=(5, 0))
-
-        self.cmb_history.bind("<<ComboboxSelected>>", self._on_select)
 
     def _on_click(self) -> None:
         self.on_select_file()
 
-    def _on_select(self, event: object) -> None:
-        path = self.cmb_history.get()
-        if path:
-            self.on_history_change(path)
-
     def set_path(self, path: str) -> None:
         display = path
-        if len(display) > 50:
-            display = "..." + display[-47:]
+        if len(display) > 60:
+            display = "..." + display[-57:]
         self.lbl_server_path.config(text=display)
-
-    def set_history(self, paths: list[str]) -> None:
-        self.cmb_history["values"] = paths
 
 
 class TemplateRow(ttk.Frame):

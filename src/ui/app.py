@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import TYPE_CHECKING
@@ -38,6 +40,7 @@ class App:
         self._setup_bindings()
 
         self._current_ssh_process: object | None = None
+        self._current_process: object | None = None
         self._restart_config = RestartConfig()
 
     def _create_services(self) -> None:
@@ -50,6 +53,17 @@ class App:
         )
 
     def _create_ui(self) -> None:
+        log_dir = "log"
+        log_file = os.path.join(log_dir, "app.log")
+        os.makedirs(log_dir, exist_ok=True)
+
+        file_handler = logging.FileHandler(log_file, encoding="utf-8", mode="a")
+        file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+        root_logger = logging.getLogger()
+        root_logger.addHandler(file_handler)
+        if not root_logger.handlers:
+            root_logger.setLevel(logging.INFO)
+
         self.toolbar = Toolbar(
             self.root,
             on_start=self._on_start,
@@ -77,6 +91,8 @@ class App:
         self.ssh_panel = SSHPanel(
             notebook,
             ssh_service=self.ssh_service,
+            on_connect=self._on_ssh_connect,
+            on_disconnect=self._on_ssh_disconnect,
         )
         notebook.add(self.ssh_panel, text="SSH 映射")
 
@@ -87,6 +103,7 @@ class App:
                 0, lambda ms=s, gs=g: self._on_monitor_update(ms, gs)
             ),
         )
+        self.log_panel.log("Application started", "SYSTEM")
 
     def _safe_log(self, message: str, level: str) -> None:
         self.root.after(0, lambda: self.log_panel.log(message, level))
@@ -134,7 +151,8 @@ class App:
         self.log_panel.log("Starting server...", "SYSTEM")
 
         try:
-            self.process_manager.start(launch_config)
+            process = self.process_manager.start(launch_config)
+            self._current_process = process
         except Exception as e:
             self.log_panel.log(f"Failed to start: {e}", "ERROR")
             self.toolbar.set_button_state("stopped")
@@ -173,6 +191,23 @@ class App:
         self.toolbar.update_memory_display(stats)
         self.toolbar.update_gpu_display(gpu_stats)
 
+    def _on_ssh_connect(self, cfg: SSHConfig) -> None:
+        self.ssh_panel.update_status(SSHState.CONNECTING)
+        try:
+            process = self.ssh_service.connect(cfg)
+            self._current_ssh_process = process
+            self.ssh_panel.update_status(SSHState.CONNECTED)
+            self.log_panel.log(f"SSH connected: {cfg.username}@{cfg.remote_host}", "INFO")
+        except Exception as e:
+            self.ssh_panel.update_status(SSHState.DISCONNECTED)
+            self.log_panel.log(f"SSH connect failed: {e}", "ERROR")
+
+    def _on_ssh_disconnect(self) -> None:
+        self.ssh_service.disconnect(self._current_ssh_process)
+        self._current_ssh_process = None
+        self.ssh_panel.update_status(SSHState.DISCONNECTED)
+        self.log_panel.log("SSH disconnected", "INFO")
+
     def _on_auto_restart_toggled(self, enabled: bool) -> None:
         self._restart_config.auto_restart = enabled
 
@@ -210,6 +245,9 @@ class App:
             params.insert(0, Parameter("-m", self.param_panel.get_model_path(), "model", True, "模型路径"))
         self.param_service.save_template(name, params)
         self.log_panel.log(f"Template saved: {name}", "INFO")
+        # Refresh template combobox
+        self.param_panel._template_row.cmb_template["values"] = self.param_service.get_template_names()
+        self.param_panel._template_row.cmb_template.set(name)
 
     def _on_closing(self) -> None:
         self.log_panel.log("Shutting down...", "SYSTEM")
