@@ -18,6 +18,8 @@ class TestSSHConfig:
             "remote_host": "172.18.122.71",
             "username": "root",
             "enabled": False,
+            "password": "",
+            "key_file": "",
         }
 
     def test_to_dict_enabled(self):

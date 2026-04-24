@@ -33,6 +33,8 @@ class SSHPanel(tk.Frame):
         self._remote_port_var = tk.StringVar(value=str(SSH_REMOTE_PORT))
         self._remote_host_var = tk.StringVar(value=SSH_REMOTE_HOST)
         self._username_var = tk.StringVar(value=SSH_USERNAME)
+        self._password_var = tk.StringVar(value="")
+        self._key_file_var = tk.StringVar(value="")
 
         self._state = SSHState.DISCONNECTED
         self._indicator: tk.Canvas | None = None
@@ -56,12 +58,16 @@ class SSHPanel(tk.Frame):
             ("远程端口:", 0),
             ("远程IP:", 2),
             ("用户名:", 2),
+            ("密码:", 0),
+            ("密钥:", 0),
         ]
         vars_list = [
             self._local_port_var,
             self._remote_port_var,
             self._remote_host_var,
             self._username_var,
+            self._password_var,
+            self._key_file_var,
         ]
 
         row = 0
@@ -69,11 +75,32 @@ class SSHPanel(tk.Frame):
             ttk.Label(self, text=label_text).grid(
                 row=row, column=col_offset, sticky=tk.W, padx=5, pady=3,
             )
-            entry = ttk.Entry(
-                self, textvariable=vars_list[row], width=18,
-            )
+            if col_offset == 2:
+                entry = ttk.Entry(self, textvariable=vars_list[row], width=18)
+            elif label_text == "密码:":
+                entry = ttk.Entry(self, textvariable=vars_list[row], width=18, show="*")
+            elif label_text == "密钥:":
+                entry = ttk.Entry(self, textvariable=vars_list[row], width=18)
+                btn_browse = ttk.Button(
+                    self, text="浏览", width=4,
+                    command=lambda: self._browse_key_file(entry),
+                )
+                entry.grid(row=row, column=col_offset + 1, sticky=tk.W, padx=5, pady=3)
+                btn_browse.grid(row=row, column=col_offset + 2, sticky=tk.W, padx=5, pady=3)
+                row += 1
+                continue
+            else:
+                entry = ttk.Entry(self, textvariable=vars_list[row], width=18)
             entry.grid(row=row, column=col_offset + 1, sticky=tk.W, padx=5, pady=3)
             row += 1
+
+    def _browse_key_file(self, entry: ttk.Entry) -> None:
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(parent=self, title="Select SSH Key File")
+        if path:
+            from src.utils.file_utils import normalize_path
+            entry.delete(0, tk.END)
+            entry.insert(0, normalize_path(path))
 
     def _build_status_row(self) -> None:
         row = 4
@@ -127,6 +154,8 @@ class SSHPanel(tk.Frame):
             remote_port=int(self._remote_port_var.get()),
             remote_host=self._remote_host_var.get(),
             username=self._username_var.get(),
+            password=self._password_var.get(),
+            key_file=self._key_file_var.get(),
         )
 
     def update_status(self, state: str) -> None:

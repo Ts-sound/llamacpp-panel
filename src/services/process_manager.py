@@ -159,11 +159,15 @@ class ProcessManager:
             self._log(f"Auto-restart failed: {exc}", "ERROR")
 
     def _log(self, message: str, level: str) -> None:
-        logger.log(
-            {"DEBUG": logging.DEBUG, "INFO": logging.INFO, "WARNING": logging.WARNING, "ERROR": logging.ERROR}.get(
-                level, logging.INFO
-            ),
-            message,
-        )
+        log_method = {
+            "DEBUG": logger.debug,
+            "INFO": logger.info,
+            "WARN": logger.warning,
+            "WARNING": logger.warning,
+            "ERROR": logger.error,
+            "SYSTEM": logger.info,
+        }.get(level, logger.info)
+        log_method(message)
+
         if self._callback is not None:
             self._callback(message, level)

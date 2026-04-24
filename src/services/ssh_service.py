@@ -17,15 +17,19 @@ class SSHService:
         self._lock = threading.Lock()
 
     def build_command(self, cfg: SSHConfig) -> str:
-        parts = [
-            "ssh",
+        parts = ["ssh"]
+        if cfg.password:
+            parts = ["sshpass", "-p", cfg.password] + parts
+        parts.extend([
             "-R",
             f"0.0.0.0:{cfg.remote_port}:127.0.0.1:{cfg.local_port}",
             "-o",
             "StrictHostKeyChecking=no",
             "-N",
-            f"{cfg.username}@{cfg.remote_host}",
-        ]
+        ])
+        if cfg.key_file:
+            parts.extend(["-i", cfg.key_file])
+        parts.append(f"{cfg.username}@{cfg.remote_host}")
         return " ".join(shlex.quote(p) for p in parts)
 
     def connect(self, cfg: SSHConfig) -> Popen[bytes]:

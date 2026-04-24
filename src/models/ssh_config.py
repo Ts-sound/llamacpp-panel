@@ -11,6 +11,8 @@ class SSHConfig:
     remote_host: str
     username: str
     enabled: bool = False
+    password: str = ""
+    key_file: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -19,6 +21,8 @@ class SSHConfig:
             "remote_host": self.remote_host,
             "username": self.username,
             "enabled": self.enabled,
+            "password": self.password,
+            "key_file": self.key_file,
         }
 
     @classmethod
@@ -29,6 +33,8 @@ class SSHConfig:
             remote_host=d["remote_host"],
             username=d["username"],
             enabled=d.get("enabled", False),
+            password=d.get("password", ""),
+            key_file=d.get("key_file", ""),
         )
 
 

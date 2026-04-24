@@ -252,7 +252,7 @@ class TemplateRow(ttk.Frame):
 
 
 class ParamTable(ttk.Frame):
-    COLUMNS = ("name", "value", "category", "required")
+    COLUMNS = ("name", "value", "category", "required", "action")
     CATEGORY_VALUES = ("model", "context", "gpu", "network", "other", "基础", "GPU", "性能", "网络")
 
     def __init__(self, master: tk.Misc) -> None:
@@ -269,11 +269,13 @@ class ParamTable(ttk.Frame):
         self.tree.heading("value", text="值")
         self.tree.heading("category", text="分类")
         self.tree.heading("required", text="必填")
+        self.tree.heading("action", text="操作")
 
         self.tree.column("name", width=100, minwidth=60)
         self.tree.column("value", width=200, minwidth=100)
         self.tree.column("category", width=80, minwidth=60)
         self.tree.column("required", width=50, minwidth=30)
+        self.tree.column("action", width=60, minwidth=50)
 
         vsb = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=vsb.set)
@@ -281,7 +283,6 @@ class ParamTable(ttk.Frame):
         self.tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         vsb.pack(side=tk.RIGHT, fill=tk.Y)
 
-        self._action_buttons: dict[str, ttk.Button] = {}
         self._params: list[Parameter] = []
 
         self.tree.bind("<Double-1>", self._on_double_click)
@@ -289,36 +290,16 @@ class ParamTable(ttk.Frame):
     def clear(self) -> None:
         for item_id in self.tree.get_children():
             self.tree.delete(item_id)
-        self._action_buttons.clear()
         self._params.clear()
 
     def insert_param(self, param: Parameter) -> None:
         required_text = "\u2713" if param.required else ""
-        item_id = self.tree.insert(
+        self.tree.insert(
             "",
             "end",
-            values=(param.name, param.value or "", param.category, required_text),
+            values=(param.name, param.value or "", param.category, required_text, "删除"),
         )
-        btn = ttk.Button(
-            self,
-            text="删除",
-            width=6,
-            command=lambda iid=item_id: self._on_delete(iid),
-        )
-        self._action_buttons[item_id] = btn
         self._params.append(param)
-        self._position_action_buttons()
-
-    def _position_action_buttons(self) -> None:
-        canvas = self.tree.yview()
-        for item_id, btn in self._action_buttons.items():
-            try:
-                bbox = self.tree.bbox(item_id, "name")
-                if bbox:
-                    x, y, w, h = bbox
-                    btn.place(x=x + w + 5, y=y + (h - 20) // 2)
-            except tk.TclError:
-                btn.place_forget()
 
     def _on_double_click(self, event: tkinter.Event) -> None:
         item_id = self.tree.identify_row(event.y)
@@ -333,7 +314,9 @@ class ParamTable(ttk.Frame):
         col_name = self.COLUMNS[col_idx]
         values = list(self.tree.item(item_id, "values"))
 
-        if col_name == "category":
+        if col_name == "action":
+            self._on_delete(item_id)
+        elif col_name == "category":
             self._edit_category(item_id, values, col_idx)
         elif col_name == "required":
             self._edit_required(item_id, values, col_idx)
@@ -352,15 +335,27 @@ class ParamTable(ttk.Frame):
         entry.place(x=x, y=y, width=w, height=h)
         entry.focus_set()
 
+        browse_btn = None
+        if col_name == "value" and len(values) > 0 and str(values[0]) == "-m":
+            browse_btn = ttk.Button(
+                self.tree,
+                text="浏览",
+                width=4,
+                command=lambda: self._browse_file(entry),
+            )
+            browse_btn.place(x=x + w - 28, y=y, width=28, height=h)
+
         def on_confirm(event: object = None) -> None:
             new_val = entry.get()
             values[col_idx] = new_val
             self.tree.item(item_id, values=tuple(values))
+            if browse_btn is not None:
+                browse_btn.destroy()
             entry.destroy()
             self._sync_item_to_params(item_id)
 
         entry.bind("<Return>", on_confirm)
-        entry.bind("<Escape>", lambda e: entry.destroy())
+        entry.bind("<Escape>", lambda e: (browse_btn.destroy() if browse_btn is not None else None, entry.destroy()))
         entry.bind("<FocusOut>", on_confirm)
 
     def _edit_category(
@@ -417,14 +412,17 @@ class ParamTable(ttk.Frame):
         except ValueError:
             return None
 
+    def _browse_file(self, entry: ttk.Entry) -> None:
+        path = filedialog.askopenfilename(parent=self)
+        if path:
+            entry.delete(0, tkinter.END)
+            entry.insert(0, normalize_path(path))
+
     def _on_delete(self, item_id: str) -> None:
         idx = self._get_item_index(item_id)
         if idx is not None:
             self._params.pop(idx)
             self._on_data_changed()
-        btn = self._action_buttons.pop(item_id, None)
-        if btn:
-            btn.destroy()
         self.tree.delete(item_id)
 
     def get_parameters(self) -> list[Parameter]:

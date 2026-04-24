@@ -22,7 +22,7 @@ class _MemoryBar(ttk.Frame):
 
     def __init__(self, master: tk.Widget) -> None:
         super().__init__(master)
-        self.lbl = ttk.Label(self, text="MEM: -- / --", width=18)
+        self.lbl = ttk.Label(self, text="MEM: --% / --G", width=18)
         self.lbl.pack(side=tk.LEFT)
         self.bar = ttk.Progressbar(
             self, orient=tk.HORIZONTAL, length=140, mode="determinate"
@@ -30,9 +30,8 @@ class _MemoryBar(ttk.Frame):
         self.bar.pack(side=tk.LEFT, padx=(4, 0))
 
     def update(self, stats: MemoryStats) -> None:
-        used_mb = stats.total - stats.available
-        total_mb = stats.total
-        self.lbl.configure(text=f"MEM: {used_mb} / {total_mb} MB")
+        total_gb = stats.total / (1024 ** 3)
+        self.lbl.configure(text=f"MEM: {stats.percent:.0f}% / {total_gb:.0f}G")
         self.bar.configure(value=stats.percent)
 
 

@@ -137,7 +137,7 @@ class TestMonitoringLifecycle:
     def test_start_stop_monitoring(self):
         callback_called = []
 
-        def callback(stats):
+        def callback(stats, gpu_stats):
             callback_called.append(stats)
 
         mock_mem = MagicMock()
@@ -147,7 +147,10 @@ class TestMonitoringLifecycle:
         mock_mem.used = 500
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.psutil.virtual_memory", return_value=mock_mem):
+        with (
+            patch("src.services.monitor_service.psutil.virtual_memory", return_value=mock_mem),
+            patch.object(svc, "get_gpu_stats", return_value=None),
+        ):
             svc.start_monitoring(interval=0.1, callback=callback)
             import time
 
@@ -160,7 +163,7 @@ class TestMonitoringLifecycle:
     def test_callback_parameter_in_constructor(self):
         called = []
 
-        def cb(stats):
+        def cb(stats, gpu_stats):
             called.append(stats)
 
         mock_mem = MagicMock()
@@ -170,7 +173,10 @@ class TestMonitoringLifecycle:
         mock_mem.used = 50
 
         svc = MonitorService(callback=cb)
-        with patch("src.services.monitor_service.psutil.virtual_memory", return_value=mock_mem):
+        with (
+            patch("src.services.monitor_service.psutil.virtual_memory", return_value=mock_mem),
+            patch.object(svc, "get_gpu_stats", return_value=None),
+        ):
             svc.start_monitoring(interval=0.1)
             import time
 

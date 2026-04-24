@@ -80,8 +80,8 @@ class App:
     def _wire_callbacks(self) -> None:
         self.monitor_service.start_monitoring(
             interval=MONITOR_INTERVAL,
-            callback=lambda stats: self.root.after(
-                0, lambda s=stats: self._on_memory_update(s)
+            callback=lambda s, g: self.root.after(
+                0, lambda ms=s, gs=g: self._on_monitor_update(ms, gs)
             ),
         )
 
@@ -160,8 +160,9 @@ class App:
             self.log_panel.log(f"Failed to restart: {e}", "ERROR")
             self.toolbar.set_button_state("stopped")
 
-    def _on_memory_update(self, stats: MemoryStats) -> None:
+    def _on_monitor_update(self, stats: MemoryStats, gpu_stats: object | None = None) -> None:
         self.toolbar.update_memory_display(stats)
+        self.toolbar.update_gpu_display(gpu_stats)
 
     def _on_auto_restart_toggled(self, enabled: bool) -> None:
         self._restart_config.auto_restart = enabled

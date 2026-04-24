@@ -10,7 +10,7 @@ from src.models.monitor import GPUStats, MemoryStats
 
 
 class MonitorService:
-    def __init__(self, callback: Callable[[MemoryStats], None] | None = None) -> None:
+    def __init__(self, callback: Callable[[MemoryStats, GPUStats | None], None] | None = None) -> None:
         self._callback = callback
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -56,7 +56,7 @@ class MonitorService:
             return None
 
     def start_monitoring(
-        self, interval: float = 3.0, callback: Callable[[MemoryStats], None] | None = None
+        self, interval: float = 3.0, callback: Callable[[MemoryStats, GPUStats | None], None] | None = None
     ) -> None:
         if callback is not None:
             self._callback = callback
@@ -80,8 +80,9 @@ class MonitorService:
         while not self._stop_event.is_set():
             try:
                 stats = self.get_memory_stats()
+                gpu_stats = self.get_gpu_stats()
                 if self._callback is not None:
-                    self._callback(stats)
+                    self._callback(stats, gpu_stats)
             except Exception:
                 pass
             self._stop_event.wait(timeout=interval)
