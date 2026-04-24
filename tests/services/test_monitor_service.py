@@ -59,7 +59,7 @@ class TestGetGpuStats:
         mock_result.stdout = "8192, 4096\n"
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.subprocess.run", return_value=mock_result):
+        with patch("src.services.monitor_service.run_hidden", return_value=mock_result):
             stats = svc.get_gpu_stats()
 
         assert isinstance(stats, GPUStats)
@@ -73,7 +73,7 @@ class TestGetGpuStats:
         mock_result.stdout = ""
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.subprocess.run", return_value=mock_result):
+        with patch("src.services.monitor_service.run_hidden", return_value=mock_result):
             stats = svc.get_gpu_stats()
 
         assert stats is None
@@ -84,7 +84,7 @@ class TestGetGpuStats:
         mock_result.stdout = "  \n"
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.subprocess.run", return_value=mock_result):
+        with patch("src.utils.cross_platform.run_hidden", return_value=mock_result):
             stats = svc.get_gpu_stats()
 
         assert stats is None
@@ -92,7 +92,7 @@ class TestGetGpuStats:
     def test_gpu_not_found(self):
         svc = MonitorService()
         with patch(
-            "src.services.monitor_service.subprocess.run",
+            "src.utils.cross_platform.run_hidden",
             side_effect=FileNotFoundError(),
         ):
             stats = svc.get_gpu_stats()
@@ -100,11 +100,10 @@ class TestGetGpuStats:
 
     def test_gpu_timeout(self):
         svc = MonitorService()
-        import subprocess
 
         with patch(
-            "src.services.monitor_service.subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="nvidia-smi", timeout=5),
+            "src.utils.cross_platform.run_hidden",
+            side_effect=TimeoutError(),
         ):
             stats = svc.get_gpu_stats()
         assert stats is None
@@ -115,7 +114,7 @@ class TestGetGpuStats:
         mock_result.stdout = "not,a,number\n"
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.subprocess.run", return_value=mock_result):
+        with patch("src.utils.cross_platform.run_hidden", return_value=mock_result):
             stats = svc.get_gpu_stats()
         assert stats is None
 
@@ -125,7 +124,7 @@ class TestGetGpuStats:
         mock_result.stdout = "0, 0\n"
 
         svc = MonitorService()
-        with patch("src.services.monitor_service.subprocess.run", return_value=mock_result):
+        with patch("src.services.monitor_service.run_hidden", return_value=mock_result):
             stats = svc.get_gpu_stats()
 
         assert stats is not None

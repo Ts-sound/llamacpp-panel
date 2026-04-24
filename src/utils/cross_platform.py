@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import subprocess
 import sys
-from subprocess import Popen
+from subprocess import Popen, CompletedProcess
+from typing import Sequence, Any
 
 
 def get_platform() -> str:
@@ -15,6 +16,54 @@ def get_server_executable_name() -> str:
     if get_platform() == "windows":
         return "server.exe"
     return "server"
+
+
+def get_hidden_startupinfo() -> object | None:
+    """Return STARTUPINFO to hide subprocess console window on Windows."""
+    if get_platform() == "windows":
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = subprocess.SW_HIDE
+        return si
+    return None
+
+
+def run_hidden(
+    args: Sequence[str],
+    *,
+    capture_output: bool = False,
+    text: bool = False,
+    timeout: float | None = None,
+    **kwargs: Any,
+) -> CompletedProcess:
+    """Run subprocess with hidden console window on Windows."""
+    return subprocess.run(
+        args,
+        capture_output=capture_output,
+        text=text,
+        timeout=timeout,
+        startupinfo=get_hidden_startupinfo(),
+        **kwargs,
+    )
+
+
+def popen_hidden(
+    args: Sequence[str],
+    *,
+    stdout: int | None = None,
+    stderr: int | None = None,
+    text: bool = False,
+    **kwargs: Any,
+) -> Popen:
+    """Create Popen with hidden console window on Windows."""
+    return Popen(
+        args,
+        stdout=stdout,
+        stderr=stderr,
+        text=text,
+        startupinfo=get_hidden_startupinfo(),
+        **kwargs,
+    )
 
 
 def kill_process(process: Popen[bytes] | None, timeout: int = 5) -> None:

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import subprocess
 import threading
 from typing import Callable
 
 import psutil
 
 from src.models.monitor import GPUStats, MemoryStats
+from src.utils.cross_platform import run_hidden
 
 
 class MonitorService:
@@ -26,7 +26,7 @@ class MonitorService:
 
     def get_gpu_stats(self) -> GPUStats | None:
         try:
-            result = subprocess.run(
+            result = run_hidden(
                 [
                     "nvidia-smi",
                     "--query-gpu=memory.total,memory.used",
@@ -52,7 +52,7 @@ class MonitorService:
                 used=used_mib * 1024 * 1024,
                 percent=(used_mib / total_mib * 100.0) if total_mib > 0 else 0.0,
             )
-        except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, IndexError):
+        except (FileNotFoundError, TimeoutError, ValueError, IndexError):
             return None
 
     def start_monitoring(

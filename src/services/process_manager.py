@@ -11,7 +11,7 @@ from src.models.errors import ProcessError
 from src.models.monitor import MemoryStats
 from src.models.restart_config import RestartConfig
 from src.models.server_config import LaunchConfig
-from src.utils.cross_platform import kill_process
+from src.utils.cross_platform import popen_hidden, kill_process
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ProcessManager:
         logger.debug("[START_PROC] args=%s", args)
         
         try:
-            process = Popen(
+            process = popen_hidden(
                 args,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

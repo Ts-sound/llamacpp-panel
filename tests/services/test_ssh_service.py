@@ -62,7 +62,7 @@ class TestConnect:
         mock_process = MagicMock()
         mock_process.pid = 12345
 
-        with patch("src.services.ssh_service.Popen", return_value=mock_process) as mock_popen:
+        with patch("src.services.ssh_service.popen_hidden", return_value=mock_process) as mock_popen:
             result = self.service.connect(cfg)
 
         assert result is mock_process
@@ -79,7 +79,7 @@ class TestConnect:
         )
 
         with patch(
-            "src.services.ssh_service.Popen",
+            "src.services.ssh_service.popen_hidden",
             side_effect=OSError("ssh not found"),
         ):
             with pytest.raises(SSHError) as exc_info:

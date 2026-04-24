@@ -7,7 +7,7 @@ from subprocess import PIPE, Popen
 
 from src.models.errors import SSHError
 from src.models.ssh_config import SSHConfig, SSHState
-from src.utils.cross_platform import kill_process
+from src.utils.cross_platform import popen_hidden, kill_process
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SSHService:
                     cfg.remote_host, cfg.username, command)
         
         try:
-            process = Popen(
+            process = popen_hidden(
                 shlex.split(command),
                 stdout=PIPE,
                 stderr=PIPE,

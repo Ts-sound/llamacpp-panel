@@ -22,7 +22,7 @@ class TestStart:
             shell_command="/usr/bin/server -m model.gguf",
         )
 
-        with patch("src.services.process_manager.Popen", return_value=mock_process):
+        with patch("src.services.process_manager.popen_hidden", return_value=mock_process):
             result = manager.start(config)
 
         assert result is mock_process
@@ -40,7 +40,7 @@ class TestStart:
             shell_command="/usr/bin/server",
         )
 
-        with patch("src.services.process_manager.Popen", return_value=mock_process):
+        with patch("src.services.process_manager.popen_hidden", return_value=mock_process):
             with pytest.raises(ProcessError) as exc_info:
                 manager.start(config)
 
@@ -56,7 +56,7 @@ class TestStart:
         )
 
         with patch(
-            "src.services.process_manager.Popen",
+            "src.services.process_manager.popen_hidden",
             side_effect=FileNotFoundError("not found"),
         ):
             with pytest.raises(ProcessError) as exc_info:
@@ -71,7 +71,7 @@ class TestStart:
         )
 
         with patch(
-            "src.services.process_manager.Popen",
+            "src.services.process_manager.popen_hidden",
             side_effect=PermissionError("denied"),
         ):
             with pytest.raises(ProcessError):
@@ -91,7 +91,7 @@ class TestStart:
         manager = ProcessManager(callback=callback)
         config = LaunchConfig(server_path="/s", shell_command="/s")
 
-        with patch("src.services.process_manager.Popen", return_value=mock_process):
+        with patch("src.services.process_manager.popen_hidden", return_value=mock_process):
             manager.start(config)
 
         assert len(callback_calls) == 1
@@ -223,7 +223,7 @@ class TestAutoRestart:
         restart_cfg = RestartConfig(auto_restart=True, max_restarts=3, restart_interval=0)
         mock_monitor = MagicMock()
 
-        with patch("src.services.process_manager.Popen", return_value=mock_new_process):
+        with patch("src.services.process_manager.popen_hidden", return_value=mock_new_process):
             manager.enable_auto_restart(config, restart_cfg, mock_monitor)
 
             import time
@@ -260,7 +260,7 @@ class TestAutoRestart:
         mock_monitor = MagicMock(spec=MonitorService)
         mock_monitor.get_memory_stats.return_value = mock_stats
 
-        with patch("src.services.process_manager.Popen", return_value=mock_new_process), patch(
+        with patch("src.services.process_manager.popen_hidden", return_value=mock_new_process), patch(
             "src.services.process_manager._POLL_INTERVAL", 0.2
         ):
             manager.enable_auto_restart(config, restart_cfg, mock_monitor)
