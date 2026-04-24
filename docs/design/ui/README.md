@@ -5,7 +5,7 @@
 | 文件 | 类 | 继承 | 尺寸 | 说明 |
 |------|---|------|------|------|
 | `app.py` | App | tk.Tk | 1000×700 | 主窗口, 组件编排, 服务依赖注入 |
-| `toolbar.py` | Toolbar | tk.Frame | height=50 | 资源仪表+操作按钮 |
+| `toolbar.py` | Toolbar | tk.Frame | - | 资源仪表(垂直排列)+操作按钮 |
 | `param_panel.py` | ParamPanel | tk.Frame | - | 参数配置面板 |
 | `ssh_panel.py` | SSHPanel | tk.Frame | - | SSH 映射配置面板 |
 | `log_panel.py` | LogPanel | tk.Frame | height=200 | 运行日志面板 |
@@ -29,8 +29,10 @@
 | `_on_start()` | 校验配置 → 启动进程 → 更新按钮状态 |
 | `_on_stop()` | 停止进程 → 更新按钮状态 |
 | `_on_restart()` | 停止旧进程 → 启动新进程 |
-| `_on_memory_update(stats)` | 内存回调 → 更新 Toolbar |
+| `_on_monitor_update(stats, gpu_stats)` | 内存/GPU 回调 → 更新 Toolbar |
 | `_on_auto_restart_toggle(enabled)` | 自动重启开关 |
+| `_on_save_template(name)` | 保存模板到文件 |
+| `_on_save_as_template()` | 弹出对话框保存新模板 |
 | `_on_closing()` | 优雅关闭: 停止线程, 终止进程, 保存配置 |
 
 **回调连接 (UI → Service):**
@@ -47,7 +49,7 @@
 | 服务回调 | 绑定方法 |
 |---------|---------|
 | process_manager.log_callback | log_panel.log |
-| monitor_service.callback | _on_memory_update |
+| monitor_service.callback | _on_monitor_update (含 GPU stats) |
 | ssh_service.log_callback | log_panel.log |
 
 **关闭流程:**
@@ -61,23 +63,27 @@
 
 **职责**: 显示系统资源状态，提供快捷操作按钮
 
-**布局**: `grid(row=0, columns=0-3, sticky=W, padx=10, pady=5)`
+**布局**: `pack(side=TOP, fill=X, padx=10, pady=2)` — 所有子组件垂直排列
 
 **子组件:**
 
-| 子组件 | 类型 | 宽度 | 说明 |
-|--------|------|------|------|
-| MemoryBar | tk.Frame | ~150px | 内存进度条 + 标签 |
-| GPUBbar | tk.Frame | ~150px | GPU 进度条 + 标签（无 GPU 时隐藏） |
-| ControlButtons | tk.Frame | ~180px | 启动/停止/重启按钮 |
-| AutoRestartToggle | tk.Frame | ~120px | 自动重启开关 |
+| 子组件 | 类型 | 说明 |
+|--------|------|------|
+| MemoryBar | tk.Frame | 内存进度条 + 标签, 垂直排列(顶部) |
+| GPUBar | tk.Frame | GPU 进度条 + 标签, 垂直排列(MEM 下方, 无 GPU 时隐藏) |
+| ControlButtons | tk.Frame | 启动/停止/重启按钮 |
+| AutoRestartToggle | tk.Frame | 自动重启开关 |
+
+**显示格式:**
+- MemoryBar: `"MEM: {percent:.0f}% / {total_gb:.0f}G"`
+- GPUBar: `"GPU: {percent:.0f}% / {total_gb:.0f}G"`
 
 **按钮状态表:**
 
 | 状态 | 启动 | 停止 | 重启 |
 |------|------|------|------|
-| 已停止 | 可用(绿色) | 禁用 | 禁用 |
-| 运行中 | 禁用 | 可用(红色) | 可用(蓝色) |
+| 已停止 | 可用 | 禁用 | 禁用 |
+| 运行中 | 禁用 | 可用 | 可用 |
 | 启动中 | 禁用 | 可用 | 禁用 |
 | 崩溃 | 可用 | 禁用 | 可用 |
 
@@ -111,16 +117,16 @@
 
 ```
 ┌─ 参数配置 ────────────────────────────────────┐
-│ [选择文件] /path/to/server  [历史记录▼]        │
+│ [选择启动文件] /path/to/server  [历史记录▼]    │
 │ 模板: [GPU加速▼] [加载] [保存] [另存为]        │
+│ 模型: [浏览] xxx.gguf                          │
 │ ┌───────────────────────────────────────────┐ │
-│ │ 参数名 │ 值        │ 分类    │ 必填 │ 操作 │ │
-│ │ -m     │ model.gguf│ model   │  ✓   │ [删除]│ │
-│ │ -c     │ 4096      │ context │      │ [删除]│ │
-│ │ -ngl   │ 99        │ gpu     │      │ [删除]│ │
+│ │ 参数名 │ 值        │ 操作 │               │ │
+│ │ -c     │ 4096      │ [删除]│               │ │
+│ │ -ngl   │ 99        │ [删除]│               │ │
 │ └───────────────────────────────────────────┘ │
 │ [+ 添加参数]                                    │
-│ 预览: /path/to/server -m model.gguf -c 4096 -ngl 99  [复制] │
+│ 预览: /path/to/server -m xxx.gguf -c 4096 -ngl 99  [复制] │
 └───────────────────────────────────────────────┘
 ```
 
@@ -130,33 +136,41 @@
 
 | 控件 | 说明 | 交互 |
 |------|------|------|
-| btn_select_file | 打开文件对话框 | 选择路径 → 更新 lbl_server_path → 触发 on_path_changed |
+| btn_select_file | "选择启动文件" 打开文件对话框 | Windows: `*.exe` 过滤, Linux: 所有文件 |
 | lbl_server_path | 显示当前路径（过长省略） | - |
-| cmb_history | 下拉选择历史路径 | 切换 → 更新 lbl_server_path → 触发 on_path_changed |
+| cmb_history | 下拉选择历史路径 | 切换 → 更新路径 → 触发回调 |
 
 ### TemplateRow
 
 | 控件 | 说明 | 交互 |
 |------|------|------|
-| cmb_template | 预设模板下拉（最小配置/GPU加速/全功能） | - |
-| btn_load_template | 加载模板参数 | 读取模板 → 填充 ParamTable |
-| btn_save_template | 保存覆盖当前模板 | 从 ParamTable 读取 → 保存 |
+| cmb_template | 模板下拉 (动态加载 config/templates/*.json) | - |
+| btn_load_template | 加载模板参数 | 读取模板 → 填充 ParamTable (不含 -m) |
+| btn_save_template | 保存覆盖当前模板 | 从 ParamTable + 模型路径 → 保存 |
 | btn_save_as_template | 另存为新模板 | 弹出对话框输入名称 → 保存 |
+
+### ModelSelectRow (新增)
+
+| 控件 | 说明 | 交互 |
+|------|------|------|
+| lbl_model_label | "模型:" | - |
+| btn_browse | "浏览" | 打开 gguf 文件选择对话框 (*.gguf) |
+| lbl_model | 显示模型文件路径 | - |
+
+**注意**: 模型路径独立管理，不参与模板的 ParamTable 参数列表。拼接命令时自动添加 `-m {模型路径}`。
 
 ### ParamTable
 
 | 列名 | 宽度 | 说明 | 可编辑 |
 |------|------|------|--------|
-| 参数名 | 100px | 如 -m, -c, --threads | 是 |
+| 参数名 | 100px | 如 -c, -ngl, --threads | 是 |
 | 值 | 200px | 参数值 | 是 |
-| 分类 | 80px | model/context/gpu/network/other | 下拉选择 |
-| 必填 | 50px | ✓ / 空 | 复选框 |
-| 操作 | 80px | [删除] 按钮 | - |
+| 操作 | 60px | [删除] 按钮 | - |
 
 **交互:**
-- 双击单元格 → 编辑模式
+- 双击 name/value 单元格 → 编辑模式
 - 按 Enter → 更新 Parameter → 触发命令预览更新
-- 点击 [删除] → 删除行 → 触发命令预览更新
+- 双击操作列 → 删除行 → 触发命令预览更新
 - [+ 添加参数] → 插入空行
 
 ### CmdPreviewRow
@@ -167,7 +181,7 @@
 | btn_copy_cmd | 复制到剪贴板 |
 
 **交互:**
-- 任何参数变化 → 重新拼接命令 → 更新 lbl_cmd_preview
+- 任何参数变化或模型路径变化 → 重新拼接命令 → 更新 lbl_cmd_preview
 - 点击 btn_copy_cmd → 复制到剪贴板 → 短暂显示"已复制"
 
 **回调接口:**
@@ -176,18 +190,21 @@
 |------|------|
 | on_file_selected | `Callable[[str], None]` |
 | on_history_selected | `Callable[[str], None]` |
+| on_model_selected | `Callable[[str], None]` |
 | on_load_template | `Callable[[str], None]` |
 | on_save_template | `Callable[[str], None]` |
-| on_save_as_template | `Callable[[], None]` |
+| on_save_as_template | `Callable[[str], None]` |
 | on_parameter_changed | `Callable[[list[Parameter]], None]` |
 
 **核心方法:**
 
 | 方法 | 说明 |
 |------|------|
-| get_launch_config() | 从 Treeview 数据构建 LaunchConfig |
-| load_parameters(params) | 加载参数列表到 Treeview |
-| update_command_preview() | 从当前参数重新拼接并更新预览 |
+| get_launch_config() | 构建 LaunchConfig (含模型路径 + ParamTable 参数) |
+| load_parameters(params) | 加载参数列表到 Treeview (过滤 -m) |
+| update_command_preview() | 从当前参数 + 模型路径拼接并更新预览 |
+| set_model_path(path) | 设置模型路径 |
+| get_model_path() | 获取模型路径 |
 
 ## 5. SSHPanel
 
@@ -200,6 +217,8 @@
 │ 本地端口: [8080        ]  远程端口: [8080    ]│
 │ 远程IP:   [172.18.122.71]                    │
 │ 用户名:   [root         ]                    │
+│ 密码:     [********     ]                    │
+│ 密钥:     [path         ] [浏览]             │
 │ ┌──┐ 已连接                                 │
 │ [连接] [断开]                                │
 └──────────────────────────────────────────────┘
@@ -213,6 +232,8 @@
 | 1 | 远程端口 | Entry (int) | 8080 |
 | 2 | 远程IP | Entry (str) | 172.18.122.71 |
 | 3 | 用户名 | Entry (str) | root |
+| 4 | 密码 | Entry (show="*") | 空 |
+| 5 | 密钥 | Entry + 浏览按钮 | 空 |
 
 ### SSHStatusRow
 
@@ -247,7 +268,7 @@
 
 | 方法 | 说明 |
 |------|------|
-| get_config() | 从输入字段读取 SSHConfig |
+| get_config() | 从输入字段读取 SSHConfig (含 password, key_file) |
 | update_status(state) | 根据 SSHState 更新状态显示 |
 
 ## 6. LogPanel

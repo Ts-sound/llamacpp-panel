@@ -6,7 +6,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  [Toolbar]  ─ 内存仪表 + GPU仪表 + 操作按钮 + 自动重启开关    │
+│  [Toolbar]  ─ MEM/GPU 仪表(垂直排列) + 操作按钮 + 自动重启    │
 ├──────────────────────────────────────────────────────────────┤
 │  [Notebook]  ─ Tab页签容器                                    │
 │  ┌─ Tab 1: 参数配置 ─────────────────────────────────────┐  │
@@ -24,7 +24,7 @@
 
 | 组件 | 布局方式 | 说明 |
 |------|---------|------|
-| Toolbar | pack(fill=X, side=TOP) | 固定在顶部 |
+| Toolbar | pack(fill=X, side=TOP) | 固定在顶部, 子组件垂直排列 |
 | Notebook | pack(fill=BOTH, expand=True) | 占据中间区域 |
 | LogPanel | pack(fill=X, side=BOTTOM) | 固定在底部，带折叠按钮 |
 
@@ -42,35 +42,38 @@
 ```
 App (tk.Tk)
 ├── Toolbar (tk.Frame)
-│   ├── MemoryBar (tk.Frame)
-│   │   ├── memory_label (tk.Label)      # "内存: 45%"
+│   ├── MemoryBar (tk.Frame)         # 垂直排列
+│   │   ├── memory_label (tk.Label)      # "MEM: 60% / 16G"
 │   │   └── memory_progress (ttk.Progressbar)
-│   ├── GPUBbar (tk.Frame)
-│   │   ├── gpu_label (tk.Label)         # "GPU: 62%"
+│   ├── GPUBar (tk.Frame)              # 垂直排列, MEM 下方
+│   │   ├── gpu_label (tk.Label)         # "GPU: 45% / 8G"
 │   │   └── gpu_progress (ttk.Progressbar)
 │   ├── ControlButtons (tk.Frame)
-│   │   ├── btn_start (tk.Button)        # "▶ 启动"
-│   │   ├── btn_stop (tk.Button)         # "⏹ 停止"
-│   │   └── btn_restart (tk.Button)      # "🔄 重启"
+│   │   ├── btn_start (tk.Button)        # "启动"
+│   │   ├── btn_stop (tk.Button)         # "停止"
+│   │   └── btn_restart (tk.Button)      # "重启"
 │   └── AutoRestartToggle (tk.Frame)
-│       ├── lbl_auto_restart (tk.Label)  # "自动重启:"
-│       └── chk_auto_restart (tk.Checkbutton)
+│       └── chk_auto_restart (tk.Checkbutton)  # "自动重启"
 ├── Notebook (ttk.Notebook)
 │   ├── ParamPanelTab (tk.Frame)
 │   │   └── ParamPanel (tk.Frame)
 │   │       ├── FileSelectRow (tk.Frame)
-│   │       │   ├── btn_select_file (tk.Button)    # "选择文件"
+│   │       │   ├── btn_select_file (tk.Button)    # "选择启动文件"
 │   │       │   ├── lbl_server_path (tk.Label)     # 当前路径
-│   │       │   └── cmb_history (tk.ttk.Combobox)  # 历史记录下拉
+│   │       │   └── cmb_history (ttk.Combobox)     # 历史记录下拉
 │   │       ├── TemplateRow (tk.Frame)
 │   │       │   ├── lbl_template (tk.Label)         # "模板:"
-│   │       │   ├── cmb_template (ttk.Combobox)     # 模板选择
+│   │       │   ├── cmb_template (ttk.Combobox)     # 模板选择(动态加载)
 │   │       │   ├── btn_load_template (tk.Button)   # "加载"
 │   │       │   ├── btn_save_template (tk.Button)   # "保存"
 │   │       │   └── btn_save_as_template (tk.Button) # "另存为"
+│   │       ├── ModelSelectRow (tk.Frame)           # 新增: 独立模型选择
+│   │       │   ├── lbl_model_label (tk.Label)       # "模型:"
+│   │       │   ├── btn_browse (tk.Button)           # "浏览"
+│   │       │   └── lbl_model (tk.Label)             # 模型文件路径
 │   │       ├── ParamTable (tk.Frame)
 │   │       │   └── tree_params (ttk.Treeview)      # 参数表格
-│   │       │       列: 参数名 | 值 | 分类 | 必填 | 操作
+│   │       │       列: 参数名 | 值 | 操作
 │   │       └── CmdPreviewRow (tk.Frame)
 │   │           ├── lbl_cmd_preview (tk.Label)       # "预览: ..."
 │   │           └── btn_copy_cmd (tk.Button)         # "复制"
@@ -84,7 +87,12 @@ App (tk.Tk)
 │           │   ├── lbl_remote_host (tk.Label)       # "远程IP:"
 │           │   ├── ent_remote_host (tk.Entry)
 │           │   ├── lbl_username (tk.Label)          # "用户名:"
-│           │   └── ent_username (tk.Entry)
+│           │   ├── ent_username (tk.Entry)
+│           │   ├── lbl_password (tk.Label)          # "密码:"
+│           │   ├── ent_password (tk.Entry, show="*") # 新增
+│           │   ├── lbl_key_file (tk.Label)          # "密钥:"
+│           │   ├── ent_key_file (tk.Entry)           # 新增
+│           │   └── btn_key_browse (tk.Button)        # 新增: "浏览"
 │           ├── SSHStatusRow (tk.Frame)
 │           │   ├── status_indicator (tk.Canvas)     # 颜色圆点
 │           │   └── lbl_status (tk.Label)            # 状态文字
@@ -107,28 +115,32 @@ App (tk.Tk)
 
 **子组件:**
 
-| 子组件 | 类型 | 宽度 | 说明 |
-|--------|------|------|------|
-| MemoryBar | tk.Frame | ~150px | 内存进度条 + 标签 |
-| GPUBbar | tk.Frame | ~150px | GPU 进度条 + 标签（无 GPU 时隐藏） |
-| ControlButtons | tk.Frame | ~180px | 启动/停止/重启按钮 |
-| AutoRestartToggle | tk.Frame | ~120px | 自动重启开关 |
+| 子组件 | 类型 | 说明 |
+|--------|------|------|
+| MemoryBar | tk.Frame | 内存进度条 + 标签, 垂直排列(顶部) |
+| GPUBar | tk.Frame | GPU 进度条 + 标签, 垂直排列(MEM 下方, 无 GPU 时隐藏) |
+| ControlButtons | tk.Frame | 启动/停止/重启按钮 |
+| AutoRestartToggle | tk.Frame | 自动重启开关 |
 
-**布局**: `grid(row=0, columns=0-3, sticky=W, padx=10, pady=5)`
+**布局**: `pack(side=TOP, fill=X, padx=10, pady=2)` — 所有子组件垂直排列
+
+**显示格式:**
+- MemoryBar: `"MEM: {percent:.0f}% / {total_gb:.0f}G"` (如 "MEM: 60% / 16G")
+- GPUBar: `"GPU: {percent:.0f}% / {total_gb:.0f}G"` (如 "GPU: 45% / 8G")
 
 **状态与行为:**
 
 | 状态 | 启动按钮 | 停止按钮 | 重启按钮 |
 |------|---------|---------|---------|
-| 已停止 | 可用(绿色) | 禁用(灰色) | 禁用(灰色) |
-| 运行中 | 禁用(灰色) | 可用(红色) | 可用(蓝色) |
+| 已停止 | 可用 | 禁用 | 禁用 |
+| 运行中 | 禁用 | 可用 | 可用 |
 | 启动中 | 禁用 | 可用 | 禁用 |
 | 崩溃 | 可用 | 禁用 | 可用 |
 
 **颜色规则:**
 - 内存 < 80%: 绿色
 - 内存 80%-90%: 黄色
-- 内存 > 90%: 红色（闪烁告警）
+- 内存 > 90%: 红色
 
 **回调接口:**
 ```
@@ -150,39 +162,52 @@ set_button_state(state: ButtonState)
 #### FileSelectRow
 | 控件 | 说明 |
 |------|------|
-| btn_select_file | 打开文件对话框选择 server 可执行文件 |
+| btn_select_file | 打开文件对话框选择启动文件，标签 "选择启动文件" |
 | lbl_server_path | 显示当前选中路径，过长时省略 |
 | cmb_history | 下拉选择历史路径，支持快速切换 |
 
 **交互:**
-- 点击 btn_select_file → 调用 `file_utils.select_server_file()` → 更新 lbl_server_path → 触发 `on_path_changed`
+- 点击 btn_select_file → 调用 `file_utils.select_server_file()` → Windows 过滤 `*.exe`, Linux 显示所有文件 → 更新 lbl_server_path → 触发 `on_path_changed`
 - 切换 cmb_history → 更新 lbl_server_path → 触发 `on_path_changed`
 
 #### TemplateRow
 | 控件 | 说明 |
 |------|------|
-| cmb_template | 下拉选择预设模板（最小配置/GPU加速/全功能） |
+| cmb_template | 下拉选择模板（从 config/templates/*.json 动态加载） |
 | btn_load_template | 将选中模板的参数加载到表格 |
 | btn_save_template | 保存当前配置覆盖选中模板 |
 | btn_save_as_template | 弹出对话框输入模板名，保存为新模板 |
 
 **交互:**
-- 点击 btn_load_template → 调用 `param_service.get_template()` → 填充 ParamTable
-- 点击 btn_save_template → 从 ParamTable 读取 → 调用 `param_service.save_template()`
+- 点击 btn_load_template → 调用 `param_service.get_template()` → 填充 ParamTable（不含 -m 参数）
+- 点击 btn_save_template → 从 ParamTable 读取参数 + 模型路径 → 调用 `param_service.save_template()`
+- 模板文件存储: `config/templates/<模板名>.json`
+
+#### ModelSelectRow (新增)
+| 控件 | 说明 |
+|------|------|
+| lbl_model_label | "模型:" |
+| btn_browse | "浏览" — 打开 gguf 文件选择对话框 |
+| lbl_model | 显示模型文件路径 |
+
+**交互:**
+- 点击 btn_browse → filedialog 过滤 `*.gguf` → 设置模型路径 → 更新命令预览
+- 模型路径独立于参数表，不在 ParamTable 中显示
+- 拼接命令时自动追加 `-m {模型路径}`
 
 #### ParamTable (ttk.Treeview)
 | 列名 | 宽度 | 说明 | 可编辑 |
 |------|------|------|--------|
-| 参数名 | 100px | 如 -m, -c, --threads | 是 |
+| 参数名 | 100px | 如 -c, -ngl, --threads | 是 |
 | 值 | 200px | 参数值 | 是 |
-| 分类 | 80px | model/context/gpu/network/other | 下拉选择 |
-| 必填 | 50px | ✓ / 空 | 复选框 |
-| 操作 | 80px | [删除] 按钮 | - |
+| 操作 | 60px | [删除] 按钮 | - |
+
+**注意**: 不含 `-m` 参数（由 ModelSelectRow 独立管理）。不含"分类"和"必填"列。
 
 **交互:**
-- 双击单元格 → 进入编辑模式
-- 编辑完成后按 Enter → 更新对应 Parameter 对象 → 触发命令预览更新
-- 点击 [删除] → 删除对应行 → 触发命令预览更新
+- 双击 name/value 单元格 → 进入编辑模式
+- 编辑完成后按 Enter → 更新 Parameter → 触发命令预览更新
+- 双击操作单元格 → 删除对应行 → 触发命令预览更新
 - 底部 "+ 添加参数" 按钮 → 插入空行
 
 #### CmdPreviewRow
@@ -192,16 +217,17 @@ set_button_state(state: ButtonState)
 | btn_copy_cmd | 将命令复制到剪贴板 |
 
 **交互:**
-- 任何参数变化 → 调用 `param_service.build_command()` → 更新 lbl_cmd_preview
+- 任何参数变化或模型路径变化 → 调用 `param_service.build_command()` → 更新 lbl_cmd_preview
 - 点击 btn_copy_cmd → `app.clipboard_append()` → 短暂显示"已复制"
 
 **回调接口:**
 ```
 on_file_selected(path: str)
 on_history_selected(path: str)
+on_model_selected(path: str)
 on_load_template(name: str)
 on_save_template(name: str)
-on_save_as_template()
+on_save_as_template(name: str)
 on_parameter_changed(params: list[Parameter])
 on_command_copy()
 ```
@@ -219,6 +245,8 @@ on_command_copy()
 | 1 | 远程端口 | tk.Entry (int) | 8080 |
 | 2 | 远程IP | tk.Entry (str) | 172.18.122.71 |
 | 3 | 用户名 | tk.Entry (str) | root |
+| 4 | 密码 | tk.Entry (str, show="*") | 空 |
+| 5 | 密钥 | tk.Entry (str) + 浏览按钮 | 空 |
 
 #### SSHStatusRow
 | 控件 | 说明 |
@@ -290,7 +318,7 @@ clear()
 用户点击"启动"
     → Toolbar.btn_start clicked
     → App.on_start_clicked()
-    → 从 ParamPanel 获取 LaunchConfig
+    → 从 ParamPanel 获取 LaunchConfig (含模型路径)
     → param_service.validate(config)
         → 校验失败 → messagebox.showerror → 中止
         → 校验成功 →
@@ -305,22 +333,25 @@ clear()
 用户编辑 ParamTable 单元格
     → ParamPanel.on_cell_edited()
     → tree_params 数据更新
-    → param_service.build_command(current_params)
+    → param_service.build_command(current_params + model_path)
     → cmd_preview_label 更新为拼接命令
 ```
 
-### 4.3 内存监控流程
+### 4.3 内存/GPU 监控流程
 
 ```
 monitor_service 后台线程 (每 3s)
-    → psutil.virtual_memory()
-    → 构建 MemoryStats
-    → callback(memory_stats)
-    → App.on_memory_update(memory_stats)
+    → psutil.virtual_memory() → MemoryStats
+    → nvidia-smi → GPUStats | None
+    → callback(memory_stats, gpu_stats)
+    → App._on_monitor_update(memory_stats, gpu_stats)
     → toolbar.update_memory_display(memory_stats)
-        → memory_label 更新百分比
+        → memory_label 更新: "MEM: 60% / 16G"
         → memory_progress 更新进度条
         → 超阈值 → 颜色变红
+    → toolbar.update_gpu_display(gpu_stats)
+        → gpu_label 更新: "GPU: 45% / 8G"
+        → gpu_progress 更新进度条
 ```
 
 ### 4.4 SSH 连接流程
@@ -328,8 +359,11 @@ monitor_service 后台线程 (每 3s)
 ```
 用户点击"连接"
     → SSHPanel.btn_connect clicked
-    → 读取 SSHConfig (从 Entry 控件)
+    → 读取 SSHConfig (含密码/密钥字段)
     → App.on_connect_clicked(cfg)
+    → ssh_service.build_command(cfg)
+        → 若有密码: "sshpass -p xxx ssh ..."
+        → 若有密钥: "ssh ... -i {key_file}"
     → ssh_service.connect(cfg)
     → status 更新为 connecting
     → SSH 进程建立成功
@@ -356,7 +390,7 @@ process_manager 监控线程
 | 差异点 | Windows | Linux |
 |--------|---------|-------|
 | 可执行文件名 | server.exe | server |
-| 文件对话框 | tk.filedialog (一致) | tk.filedialog (一致) |
+| 文件对话框 | tk.filedialog (*.exe 过滤) | tk.filedialog (所有文件) |
 | 进程终止 | os.kill + CTRL_BREAK_EVENT | SIGTERM |
 | 字体 | "Microsoft YaHei" | "Noto Sans CJK SC" |
 

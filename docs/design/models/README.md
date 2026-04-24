@@ -57,6 +57,8 @@ classDiagram
         +str remote_host
         +str username
         +bool enabled
+        +str password
+        +str key_file
     }
 
     class SSHState {
@@ -153,6 +155,8 @@ classDiagram
 | remote_host | str | 是 | 非空 |
 | username | str | 是 | 非空 |
 | enabled | bool | 是 | - |
+| password | str | 否 | SSH 登录密码 |
+| key_file | str | 否 | SSH 私钥文件路径 |
 
 ### RestartConfig
 
@@ -204,7 +208,9 @@ from_dict(dict) -> Self   # 嵌套反序列化
         "remote_port": 8080,
         "remote_host": "172.18.122.71",
         "username": "root",
-        "enabled": false
+        "enabled": false,
+        "password": "",
+        "key_file": ""
     },
     "history": [
         {"server_path": "/usr/local/bin/server", "last_used": "2026-04-24T10:00:00Z"}

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import tkinter
 import tkinter as tk
-from tkinter import filedialog, messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, ttk
 from typing import Callable
 
 from src.models.server_config import LaunchConfig, Parameter
 from src.services.config_service import ConfigService
 from src.services.param_service import ParamService
-from src.utils.file_utils import normalize_path
+from src.utils.file_utils import select_server_file
 
 
 class ParamPanel(ttk.Frame):
@@ -23,26 +22,22 @@ class ParamPanel(ttk.Frame):
         self._config_service = config_service
         self._parameters: list[Parameter] = []
         self._server_path: str = ""
+        self._model_path: str = ""
 
-        on_file_selected: Callable[[str], None] = lambda p: None
-        on_history_selected: Callable[[str], None] = lambda p: None
-        on_load_template: Callable[[str], None] = lambda n: None
-        on_save_template: Callable[[str], None] = lambda n: None
-        on_save_as_template: Callable[[], None] = lambda: None
-        on_parameter_changed: Callable[[list[Parameter]], None] = lambda p: None
-
-        self._on_file_selected = on_file_selected
-        self._on_history_selected = on_history_selected
-        self._on_load_template = on_load_template
-        self._on_save_template = on_save_template
-        self._on_save_as_template = on_save_as_template
-        self._on_parameter_changed = on_parameter_changed
+        self._on_file_selected: Callable[[str], None] = lambda p: None
+        self._on_history_selected: Callable[[str], None] = lambda p: None
+        self._on_model_selected: Callable[[str], None] = lambda p: None
+        self._on_load_template: Callable[[str], None] = lambda n: None
+        self._on_save_template: Callable[[str], None] = lambda n: None
+        self._on_save_as_template: Callable[[str], None] = lambda n: None
+        self._on_parameter_changed: Callable[[list[Parameter]], None] = lambda p: None
 
         self._build_ui()
 
     def _build_ui(self) -> None:
         self._file_row = FileSelectRow(self)
-        self._template_row = TemplateRow(self)
+        self._template_row = TemplateRow(self, self._param_service)
+        self._model_row = ModelSelectRow(self)
         self._param_table = ParamTable(self)
         self._cmd_preview = CmdPreviewRow(self)
 
@@ -50,28 +45,23 @@ class ParamPanel(ttk.Frame):
 
         self._file_row.pack(fill=tk.X, padx=5, pady=(5, 0))
         self._template_row.pack(fill=tk.X, padx=5, pady=5)
+        self._model_row.pack(fill=tk.X, padx=5, pady=5)
         self._param_table.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         add_btn.pack(fill=tk.X, padx=5, pady=(0, 5))
         self._cmd_preview.pack(fill=tk.X, padx=5, pady=(0, 5))
 
         self._file_row.on_select_file = self._on_select_file
         self._file_row.on_history_change = self._on_history_change
+        self._model_row.on_select = self._on_model_selected
         self._template_row.on_load = self._on_load_template_clicked
         self._template_row.on_save = self._on_save_template_clicked
         self._template_row.on_save_as = self._on_save_as_template_clicked
         self._cmd_preview.on_copy = self._on_copy_command
 
-    # -- FileSelectRow callbacks --
-
     def _on_select_file(self) -> None:
-        path = filedialog.askopenfilename(
-            parent=self,
-            title="Select Server Executable",
-            filetypes=[("Server Binary", "server")],
-        )
+        path = select_server_file(self)
         if not path:
             return
-        path = normalize_path(path)
         self._server_path = path
         self._file_row.set_path(path)
         self._on_file_selected(path)
@@ -81,7 +71,11 @@ class ParamPanel(ttk.Frame):
         self._file_row.set_path(path)
         self._on_history_selected(path)
 
-    # -- TemplateRow callbacks --
+    def _on_model_selected(self, path: str) -> None:
+        self._model_path = path
+        self._model_row.set_model(path)
+        self._on_model_selected(path)
+        self.update_command_preview()
 
     def _on_load_template_clicked(self) -> None:
         name = self._template_row.get_selected_template()
@@ -101,25 +95,11 @@ class ParamPanel(ttk.Frame):
     def _on_save_as_template_clicked(self) -> None:
         self._on_save_as_template()
 
-    # -- ParamTable callbacks --
-
     def _on_add_parameter(self) -> None:
         param = Parameter(name="", value="", category="other", required=False)
         self._parameters.append(param)
         self._param_table.insert_param(param)
         self._on_parameter_changed(self._parameters)
-
-    def _on_param_edited(self, idx: int, param: Parameter) -> None:
-        self._parameters[idx] = param
-        self.update_command_preview()
-        self._on_parameter_changed(self._parameters)
-
-    def _on_param_deleted(self, idx: int) -> None:
-        self._parameters.pop(idx)
-        self.update_command_preview()
-        self._on_parameter_changed(self._parameters)
-
-    # -- CmdPreviewRow callbacks --
 
     def _on_copy_command(self) -> None:
         cmd = self._cmd_preview.get_preview()
@@ -127,12 +107,11 @@ class ParamPanel(ttk.Frame):
         self.clipboard_append(cmd)
         self._cmd_preview.show_copied()
 
-    # -- Public API --
-
     def load_parameters(self, params: list[Parameter]) -> None:
-        self._parameters = list(params)
+        non_model_params = [p for p in params if p.name != "-m"]
+        self._parameters = non_model_params
         self._param_table.clear()
-        for p in self._parameters:
+        for p in non_model_params:
             self._param_table.insert_param(p)
         self.update_command_preview()
 
@@ -140,37 +119,47 @@ class ParamPanel(ttk.Frame):
         return list(self._parameters)
 
     def get_launch_config(self) -> LaunchConfig:
-        cmd = self._build_shell_command()
+        params = list(self._parameters)
+        if self._model_path:
+            params.insert(0, Parameter("-m", self._model_path, "model", True, "模型路径"))
+        cmd = self._param_service.build_command(LaunchConfig(
+            server_path=self._server_path,
+            parameters=params,
+            selected_template=self._template_row.get_selected_template(),
+            shell_command="",
+        ))
         return LaunchConfig(
             server_path=self._server_path,
             shell_command=cmd,
-            parameters=list(self._parameters),
+            parameters=params,
             selected_template=self._template_row.get_selected_template(),
         )
 
     def update_command_preview(self) -> None:
+        params = list(self._parameters)
+        if self._model_path:
+            params.insert(0, Parameter("-m", self._model_path, "model", True, "模型路径"))
         config = LaunchConfig(
             server_path=self._server_path,
             shell_command="",
-            parameters=list(self._parameters),
+            parameters=params,
         )
         cmd = self._param_service.build_command(config)
         self._cmd_preview.set_preview(cmd)
-
-    def _build_shell_command(self) -> str:
-        config = LaunchConfig(
-            server_path=self._server_path,
-            shell_command="",
-            parameters=list(self._parameters),
-        )
-        return self._param_service.build_command(config)
 
     def set_server_path(self, path: str) -> None:
         self._server_path = path
         self._file_row.set_path(path)
 
+    def set_model_path(self, path: str) -> None:
+        self._model_path = path
+        self._model_row.set_model(path)
+
     def get_server_path(self) -> str:
         return self._server_path
+
+    def get_model_path(self) -> str:
+        return self._model_path
 
 
 class FileSelectRow(ttk.Frame):
@@ -179,7 +168,7 @@ class FileSelectRow(ttk.Frame):
         self.on_select_file: Callable[[], None] = lambda: None
         self.on_history_change: Callable[[str], None] = lambda p: None
 
-        self.btn_select_file = ttk.Button(self, text="选择文件", command=self._on_click)
+        self.btn_select_file = ttk.Button(self, text="选择启动文件", command=self._on_click)
         self.lbl_server_path = ttk.Label(self, text="未选择", width=40)
         self.cmb_history = ttk.Combobox(self, state="readonly", width=40)
 
@@ -208,25 +197,24 @@ class FileSelectRow(ttk.Frame):
 
 
 class TemplateRow(ttk.Frame):
-    def __init__(self, master: tk.Misc) -> None:
+    def __init__(self, master: tk.Misc, param_service: ParamService) -> None:
         super().__init__(master)
+        self._param_service = param_service
         self.on_load: Callable[[], None] = lambda: None
         self.on_save: Callable[[], None] = lambda: None
         self.on_save_as: Callable[[], None] = lambda: None
 
         ttk.Label(self, text="模板:").pack(side=tk.LEFT, padx=(0, 2))
 
-        templates = list(
-            ParamService.PRESET_TEMPLATES.keys()
-        )
         self.cmb_template = ttk.Combobox(
             self,
-            values=templates,
+            values=param_service.get_template_names(),
             state="readonly",
             width=15,
         )
         self.cmb_template.pack(side=tk.LEFT, padx=(0, 5))
-        self.cmb_template.current(0)
+        if self.cmb_template["values"]:
+            self.cmb_template.current(0)
 
         self.btn_load = ttk.Button(self, text="加载", command=self._on_load, width=6)
         self.btn_save = ttk.Button(self, text="保存", command=self._on_save, width=6)
@@ -251,9 +239,37 @@ class TemplateRow(ttk.Frame):
         return self.cmb_template.get()
 
 
+class ModelSelectRow(ttk.Frame):
+    def __init__(self, master: tk.Misc) -> None:
+        super().__init__(master)
+        self.on_select: Callable[[str], None] = lambda p: None
+
+        ttk.Label(self, text="模型:").pack(side=tk.LEFT, padx=(0, 5))
+
+        self.btn_browse = ttk.Button(self, text="浏览", command=self._on_click)
+        self.btn_browse.pack(side=tk.LEFT, padx=(0, 5))
+
+        self.lbl_model = ttk.Label(self, text="未选择", width=30)
+        self.lbl_model.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+    def _on_click(self) -> None:
+        path = filedialog.askopenfilename(
+            parent=self,
+            title="选择模型文件",
+            filetypes=[("GGUF 模型", "*.gguf"), ("所有文件", "*")],
+        )
+        if path:
+            self.on_select(path)
+
+    def set_model(self, path: str) -> None:
+        display = path
+        if len(display) > 40:
+            display = "..." + display[-37:]
+        self.lbl_model.config(text=display)
+
+
 class ParamTable(ttk.Frame):
-    COLUMNS = ("name", "value", "category", "required", "action")
-    CATEGORY_VALUES = ("model", "context", "gpu", "network", "other", "基础", "GPU", "性能", "网络")
+    COLUMNS = ("name", "value", "action")
 
     def __init__(self, master: tk.Misc) -> None:
         super().__init__(master)
@@ -267,14 +283,10 @@ class ParamTable(ttk.Frame):
 
         self.tree.heading("name", text="参数名")
         self.tree.heading("value", text="值")
-        self.tree.heading("category", text="分类")
-        self.tree.heading("required", text="必填")
         self.tree.heading("action", text="操作")
 
         self.tree.column("name", width=100, minwidth=60)
         self.tree.column("value", width=200, minwidth=100)
-        self.tree.column("category", width=80, minwidth=60)
-        self.tree.column("required", width=50, minwidth=30)
         self.tree.column("action", width=60, minwidth=50)
 
         vsb = ttk.Scrollbar(self, orient=tk.VERTICAL, command=self.tree.yview)
@@ -293,15 +305,13 @@ class ParamTable(ttk.Frame):
         self._params.clear()
 
     def insert_param(self, param: Parameter) -> None:
-        required_text = "\u2713" if param.required else ""
         self.tree.insert(
-            "",
-            "end",
-            values=(param.name, param.value or "", param.category, required_text, "删除"),
+            "", "end",
+            values=(param.name, param.value or "", "删除"),
         )
         self._params.append(param)
 
-    def _on_double_click(self, event: tkinter.Event) -> None:
+    def _on_double_click(self, event: tk.Event) -> None:
         item_id = self.tree.identify_row(event.y)
         column = self.tree.identify_column(event.x)
         if not item_id or not column:
@@ -316,10 +326,6 @@ class ParamTable(ttk.Frame):
 
         if col_name == "action":
             self._on_delete(item_id)
-        elif col_name == "category":
-            self._edit_category(item_id, values, col_idx)
-        elif col_name == "required":
-            self._edit_required(item_id, values, col_idx)
         else:
             self._edit_text(item_id, values, col_idx, col_name)
 
@@ -335,62 +341,16 @@ class ParamTable(ttk.Frame):
         entry.place(x=x, y=y, width=w, height=h)
         entry.focus_set()
 
-        browse_btn = None
-        if col_name == "value" and len(values) > 0 and str(values[0]) == "-m":
-            browse_btn = ttk.Button(
-                self.tree,
-                text="浏览",
-                width=4,
-                command=lambda: self._browse_file(entry),
-            )
-            browse_btn.place(x=x + w - 28, y=y, width=28, height=h)
-
         def on_confirm(event: object = None) -> None:
             new_val = entry.get()
             values[col_idx] = new_val
             self.tree.item(item_id, values=tuple(values))
-            if browse_btn is not None:
-                browse_btn.destroy()
             entry.destroy()
             self._sync_item_to_params(item_id)
 
         entry.bind("<Return>", on_confirm)
-        entry.bind("<Escape>", lambda e: (browse_btn.destroy() if browse_btn is not None else None, entry.destroy()))
+        entry.bind("<Escape>", lambda e: entry.destroy())
         entry.bind("<FocusOut>", on_confirm)
-
-    def _edit_category(
-        self, item_id: str, values: list[str], col_idx: int
-    ) -> None:
-        bbox = self.tree.bbox(item_id, "category")
-        if not bbox:
-            return
-        x, y, w, h = bbox
-
-        combo = ttk.Combobox(
-            self.tree,
-            values=self.CATEGORY_VALUES,
-            state="readonly",
-            width=w // 7,
-        )
-        combo.set(values[col_idx])
-        combo.place(x=x, y=y, width=w, height=h)
-        combo.focus_set()
-
-        def on_confirm(event: object = None) -> None:
-            values[col_idx] = combo.get()
-            self.tree.item(item_id, values=tuple(values))
-            combo.destroy()
-            self._sync_item_to_params(item_id)
-
-        combo.bind("<Return>", on_confirm)
-        combo.bind("<FocusOut>", on_confirm)
-
-    def _edit_required(
-        self, item_id: str, values: list[str], col_idx: int
-    ) -> None:
-        values[col_idx] = "" if values[col_idx] else "\u2713"
-        self.tree.item(item_id, values=tuple(values))
-        self._sync_item_to_params(item_id)
 
     def _sync_item_to_params(self, item_id: str) -> None:
         idx = self._get_item_index(item_id)
@@ -400,10 +360,9 @@ class ParamTable(ttk.Frame):
         self._params[idx] = Parameter(
             name=str(values[0]),
             value=str(values[1]) if values[1] else None,
-            category=str(values[2]),
-            required=bool(values[3]),
+            category="other",
+            required=False,
         )
-        self._on_data_changed()
 
     def _get_item_index(self, item_id: str) -> int | None:
         children = list(self.tree.get_children())
@@ -412,17 +371,10 @@ class ParamTable(ttk.Frame):
         except ValueError:
             return None
 
-    def _browse_file(self, entry: ttk.Entry) -> None:
-        path = filedialog.askopenfilename(parent=self)
-        if path:
-            entry.delete(0, tkinter.END)
-            entry.insert(0, normalize_path(path))
-
     def _on_delete(self, item_id: str) -> None:
         idx = self._get_item_index(item_id)
         if idx is not None:
             self._params.pop(idx)
-            self._on_data_changed()
         self.tree.delete(item_id)
 
     def get_parameters(self) -> list[Parameter]:
@@ -433,14 +385,11 @@ class ParamTable(ttk.Frame):
                 Parameter(
                     name=str(values[0]),
                     value=str(values[1]) if values[1] else None,
-                    category=str(values[2]),
-                    required=bool(values[3]),
+                    category="other",
+                    required=False,
                 )
             )
         return result
-
-    def _on_data_changed(self) -> None:
-        pass
 
 
 class CmdPreviewRow(ttk.Frame):

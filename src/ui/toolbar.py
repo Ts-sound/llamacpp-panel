@@ -40,7 +40,7 @@ class _GPUBbar(ttk.Frame):
 
     def __init__(self, master: tk.Widget) -> None:
         super().__init__(master)
-        self.lbl = ttk.Label(self, text="GPU: -- / --", width=16)
+        self.lbl = ttk.Label(self, text="GPU: --% / --G", width=18)
         self.lbl.pack(side=tk.LEFT)
         self.bar = ttk.Progressbar(
             self, orient=tk.HORIZONTAL, length=120, mode="determinate"
@@ -48,16 +48,15 @@ class _GPUBbar(ttk.Frame):
         self.bar.pack(side=tk.LEFT, padx=(4, 0))
 
     def show(self) -> None:
-        self.pack(side=tk.LEFT, padx=(12, 0))
+        self.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
 
     def hide(self) -> None:
         self.pack_forget()
 
     def update(self, stats: GPUStats) -> None:
         if stats.total is not None and stats.used is not None:
-            total_mb = stats.total
-            used_mb = stats.used
-            self.lbl.configure(text=f"GPU: {used_mb} / {total_mb} MB")
+            total_gb = stats.total / (1024 ** 3)
+            self.lbl.configure(text=f"GPU: {stats.percent:.0f}% / {total_gb:.0f}G")
         if stats.percent is not None:
             self.bar.configure(value=stats.percent)
 
@@ -134,17 +133,17 @@ class Toolbar(ttk.Frame):
         self._register_styles()
 
         self.memory_bar = _MemoryBar(self)
-        self.memory_bar.pack(side=tk.LEFT, padx=10, pady=5)
+        self.memory_bar.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
 
         self.gpu_bar = _GPUBbar(self)
 
         self.control_buttons = _ControlButtons(
             self, on_start=on_start, on_stop=on_stop, on_restart=on_restart
         )
-        self.control_buttons.pack(side=tk.LEFT, padx=10, pady=5)
+        self.control_buttons.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
 
         self.auto_restart = _AutoRestartToggle(self, on_toggled=on_auto_restart)
-        self.auto_restart.pack(side=tk.LEFT, padx=10, pady=5)
+        self.auto_restart.pack(side=tk.TOP, fill=tk.X, padx=10, pady=2)
 
         self.auto_restart.cb.configure(command=self.auto_restart.on_toggle)
 

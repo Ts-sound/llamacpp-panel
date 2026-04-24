@@ -90,10 +90,29 @@ flowchart TD
 | 方法 | 输入 | 返回 | 说明 |
 |------|------|------|------|
 | `build_command()` | LaunchConfig | str | 参数列表 → shell 命令 |
-| `get_template()` | str (模板名) | list[Parameter] | 返回预设模板深拷贝 |
+| `get_template()` | str (模板名) | list[Parameter] | 返回模板深拷贝 |
+| `save_template()` | str (模板名), list[Parameter] | None | 保存模板到 JSON 文件 |
+| `get_template_names()` | - | list[str] | 返回所有可用模板名 |
 | `validate()` | LaunchConfig | list[str] | 错误信息列表，空=通过 |
 
-**预设模板:**
+**模板持久化:**
+
+模板存储为独立 JSON 文件: `config/templates/<模板名>.json`
+
+格式:
+```json
+{
+    "name": "GPU加速",
+    "parameters": [
+        {"name": "-c", "value": "4096", "category": "基础", "required": false, "description": "上下文大小"},
+        {"name": "-ngl", "value": "99", "category": "GPU", "required": false, "description": "GPU层数"}
+    ]
+}
+```
+
+**注意**: 模板不含 `-m` 参数（模型路径由 UI 独立管理）。加载模板时自动排除 `-m`，拼接命令时自动追加 `-m {模型路径}`。
+
+**预设模板 (DEFAULT_TEMPLATES, 仅作为首次启动时的默认值):**
 
 | 模板名 | 参数列表 |
 |--------|---------|
@@ -143,18 +162,20 @@ flowchart TD
 
 **参数:**
 - interval: 默认 3.0 秒
-- callback: `Callable[[MemoryStats], None]`
+- callback: `Callable[[MemoryStats, GPUStats | None], None]`
 
-**GPU 采集 (nvidia-smi):**
-- 命令: `nvidia-smi --query-gpu=memory.total,memory.used --format=csv,noheader,nounits`
-- 解析: MiB → bytes
-- percent = used / total × 100
-- 失败时返回 None
+**后台线程行为 (更新):**
 
-**线程安全:**
-- `_stop_event` 用于线程间通信
-- callback 初始化时设定，运行中不可变
-- `stop_monitoring()` 等待线程退出（超时 5 秒）
+```mermaid
+flowchart TD
+    A[线程启动] --> B{stop_event?}
+    B -->|是| Z[退出]
+    B -->|否| C[get_memory_stats]
+    C --> D[get_gpu_stats]
+    D --> E[调用 callback memory_stats, gpu_stats]
+    E --> F[等待 interval 秒]
+    F --> B
+```
 
 ### 3.4 SSHService
 
@@ -170,10 +191,17 @@ flowchart TD
 **SSH 命令格式:**
 
 ```
+# 无密码/密钥:
 ssh -R 0.0.0.0:{remote_port}:127.0.0.1:{local_port}
     -o StrictHostKeyChecking=no
     -N
     {username}@{remote_host}
+
+# 有密钥:
+ssh -R ... -o StrictHostKeyChecking=no -N -i {key_file} {username}@{remote_host}
+
+# 有密码 (使用 sshpass):
+sshpass -p {password} ssh -R ... -o StrictHostKeyChecking=no -N {username}@{remote_host}
 ```
 
 **状态机:**
@@ -273,6 +301,6 @@ sequenceDiagram
 | 服务 | 回调签名 | 触发时机 |
 |------|---------|---------|
 | ProcessManager | `Callable[[str, str], None]` | 进程状态变化 |
-| MonitorService | `Callable[[MemoryStats], None]` | 每 3 秒 |
+| MonitorService | `Callable[[MemoryStats, GPUStats\|None], None]` | 每 3 秒 |
 | SSHService | `Callable[[str, str], None]` | SSH 状态变化 |
 | ConfigService | 无回调 | 同步操作 |

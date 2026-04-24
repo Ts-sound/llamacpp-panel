@@ -2,15 +2,20 @@ from __future__ import annotations
 
 import os
 import pathlib
+import sys
 import tkinter
 from tkinter import filedialog
 
 
 def select_server_file(parent: tkinter.Misc) -> str | None:
+    if sys.platform == "win32":
+        file_types = [("可执行文件", "*.exe")]
+    else:
+        file_types = [("所有文件", "*")]
     path = filedialog.askopenfilename(
         parent=parent,
-        title="Select Server Executable",
-        filetypes=[("All Files", "*.*")],
+        title="选择启动文件",
+        filetypes=file_types,
     )
     if path:
         return normalize_path(path)

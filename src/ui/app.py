@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 from src.config import MONITOR_INTERVAL
 from src.models.monitor import MemoryStats
 from src.models.restart_config import RestartConfig
+from src.models.server_config import Parameter
 from src.models.ssh_config import SSHConfig, SSHState
 from src.services.config_service import ConfigService
 from src.services.monitor_service import MonitorService
@@ -69,6 +70,8 @@ class App:
             param_service=self.param_service,
             config_service=self.config_service,
         )
+        self.param_panel._on_save_template = self._on_save_template
+        self.param_panel._on_save_as_template = self._on_save_as_template
         notebook.add(self.param_panel, text="参数配置")
 
         self.ssh_panel = SSHPanel(
@@ -99,6 +102,12 @@ class App:
         if launch_config.server_path:
             self.param_panel.set_server_path(launch_config.server_path)
             self.param_panel.load_parameters(launch_config.parameters)
+
+        if launch_config.parameters:
+            for p in launch_config.parameters:
+                if p.name == "-m" and p.value:
+                    self.param_panel.set_model_path(p.value)
+                    break
 
         if ssh_config.remote_host:
             self.ssh_panel.update_status(SSHState.DISCONNECTED)
@@ -183,6 +192,24 @@ class App:
         else:
             self.process_manager.disable_auto_restart()
             self.log_panel.log("Auto-restart disabled", "SYSTEM")
+
+    def _on_save_template(self, name: str) -> None:
+        params = self.param_panel.get_current_params()
+        if self.param_panel.get_model_path():
+            params.insert(0, Parameter("-m", self.param_panel.get_model_path(), "model", True, "模型路径"))
+        self.param_service.save_template(name, params)
+        self.log_panel.log(f"Template saved: {name}", "INFO")
+
+    def _on_save_as_template(self) -> None:
+        from tkinter import simpledialog
+        name = simpledialog.askstring("另存为模板", "请输入模板名称:", parent=self.root)
+        if not name:
+            return
+        params = self.param_panel.get_current_params()
+        if self.param_panel.get_model_path():
+            params.insert(0, Parameter("-m", self.param_panel.get_model_path(), "model", True, "模型路径"))
+        self.param_service.save_template(name, params)
+        self.log_panel.log(f"Template saved: {name}", "INFO")
 
     def _on_closing(self) -> None:
         self.log_panel.log("Shutting down...", "SYSTEM")
