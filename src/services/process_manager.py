@@ -95,6 +95,10 @@ class ProcessManager:
         pid = target.pid
         logger.info("[STOP_PROC] pid=%d, stopping", pid)
         
+        logger.info("[STOP_PROC] pid=%d, calling kill_process", pid)
+        kill_process(target, timeout=5)
+        logger.info("[STOP_PROC] pid=%d, kill_process_done", pid)
+        
         if target.stdout:
             try:
                 target.stdout.close()
@@ -105,10 +109,6 @@ class ProcessManager:
                 target.stderr.close()
             except Exception as e:
                 logger.warning("[STOP_PROC] stderr_close_error: %s", e)
-        
-        logger.info("[STOP_PROC] pid=%d, calling kill_process", pid)
-        kill_process(target, timeout=5)
-        logger.info("[STOP_PROC] pid=%d, kill_process_done", pid)
         
         if target is self._current_process:
             self._current_process = None
