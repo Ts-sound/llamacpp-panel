@@ -6,6 +6,7 @@
 |------|------|------|
 | 总体架构 | 本文 | 项目信息、架构图、术语表、默认值、模板、验证规则、错误类型、测试策略 |
 | llama.cpp 参数 | [../llama-server-params.md](../llama-server-params.md) | llama-server 常用参数参考、分类表格、使用示例 |
+| 故障排查 | [../troubleshooting.md](../troubleshooting.md) | SSH 配置、进程问题、性能优化、配置问题排查 |
 | UI 设计 | [ui_design.md](./ui_design.md) | 窗口布局、组件层级、交互流程、事件流、跨平台兼容 |
 | 模型层 | [models/README.md](./models/README.md) | dataclass 定义、字段约束、序列化格式、类图 |
 | 服务层 | [services/README.md](./services/README.md) | 服务接口、线程模型、回调协议、状态机、协作序列图 |
